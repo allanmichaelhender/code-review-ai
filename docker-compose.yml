@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: codereview-postgres
+    environment:
+      POSTGRES_DB: codereview
+      POSTGRES_USER: codereview
+      POSTGRES_PASSWORD: codereview
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - codereview-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: codereview-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - codereview-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codereview-backend
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/codereview
+      DATABASE_USERNAME: codereview
+      DATABASE_PASSWORD: codereview
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GITHUB_API_TOKEN: ${GITHUB_API_TOKEN}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - codereview-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: codereview-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - codereview-network
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: codereview-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - codereview-network
+
+volumes:
+  postgres-data:
+
+networks:
+  codereview-network:
+    driver: bridge
