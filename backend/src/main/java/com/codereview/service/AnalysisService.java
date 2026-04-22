@@ -2,10 +2,10 @@ package com.codereview.service;
 
 import com.codereview.model.Analysis;
 import com.codereview.model.AnalysisResult;
-import com.codereview.model.Repository;
+import com.codereview.model.CodeRepository;
 import com.codereview.repository.AnalysisRepository;
 import com.codereview.repository.AnalysisResultRepository;
-import com.codereview.repository.RepositoryRepository;
+import com.codereview.repository.CodeRepositoryRepository;
 import com.codereview.service.llm.LLMService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,14 +20,14 @@ import java.util.regex.Pattern;
 @Service
 public class AnalysisService {
     
-    private final RepositoryRepository repositoryRepository;
+    private final CodeRepositoryRepository repositoryRepository;
     private final AnalysisRepository analysisRepository;
     private final AnalysisResultRepository analysisResultRepository;
     private final LLMService llmService;
     private final ObjectMapper objectMapper;
     
     public AnalysisService(
-            RepositoryRepository repositoryRepository,
+            CodeRepositoryRepository repositoryRepository,
             AnalysisRepository analysisRepository,
             AnalysisResultRepository analysisResultRepository,
             LLMService llmService,
@@ -51,9 +51,9 @@ public class AnalysisService {
         String name = parts[1];
         
         // Get or create repository
-        Repository repository = repositoryRepository.findByOwnerAndName(owner, name)
+        CodeRepository repository = repositoryRepository.findByOwnerAndName(owner, name)
                 .orElseGet(() -> repositoryRepository.save(
-                        Repository.builder()
+                        CodeRepository.builder()
                                 .owner(owner)
                                 .name(name)
                                 .url(repoUrl)
@@ -68,7 +68,7 @@ public class AnalysisService {
         return analysis;
     }
     
-    private Analysis performAnalysis(Repository repository, String provider) {
+    private Analysis performAnalysis(CodeRepository repository, String provider) {
         // For MVP, we'll analyze a sample code snippet
         // In production, this would analyze actual files from the repository
         String sampleCode = """
@@ -208,11 +208,22 @@ public class AnalysisService {
         return null;
     }
     
-    public List<Repository> getAllRepositories() {
+    public List<CodeRepository> getAllRepositories() {
         return repositoryRepository.findAll();
     }
     
     public List<AnalysisResult> getAnalysisResults(Long analysisId) {
         return analysisResultRepository.findByAnalysisId(analysisId);
+    }
+
+    public java.util.Optional<Analysis> getLatestAnalysisByRepoUrl(String repoUrl) {
+        String[] parts = parseGitHubUrl(repoUrl);
+        if (parts == null) {
+            return java.util.Optional.empty();
+        }
+        String owner = parts[0];
+        String name = parts[1];
+        return repositoryRepository.findByOwnerAndName(owner, name)
+                .flatMap(repo -> analysisRepository.findTopByRepositoryOrderByAnalyzedAtDesc(repo));
     }
 }

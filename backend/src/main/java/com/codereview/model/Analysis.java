@@ -20,7 +20,7 @@ public class Analysis {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "repository_id", nullable = false)
-    private Repository repository;
+    private CodeRepository repository;
     
     @Column(nullable = false)
     private String commitHash;

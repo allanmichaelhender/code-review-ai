@@ -2,7 +2,7 @@ package com.codereview.controller;
 
 import com.codereview.model.Analysis;
 import com.codereview.model.AnalysisResult;
-import com.codereview.model.Repository;
+import com.codereview.model.CodeRepository;
 import com.codereview.service.AnalysisService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +22,8 @@ public class AnalysisController {
     }
     
     @GetMapping("/repositories")
-    public ResponseEntity<List<Repository>> getRepositories() {
-        List<Repository> repositories = analysisService.getAllRepositories();
+    public ResponseEntity<List<CodeRepository>> getRepositories() {
+        List<CodeRepository> repositories = analysisService.getAllRepositories();
         return ResponseEntity.ok(repositories);
     }
     
@@ -48,5 +48,24 @@ public class AnalysisController {
     public ResponseEntity<List<AnalysisResult>> getAnalysisResults(@PathVariable Long id) {
         List<AnalysisResult> results = analysisService.getAnalysisResults(id);
         return ResponseEntity.ok(results);
+    }
+
+    @GetMapping("/analysis/by-repo")
+    public ResponseEntity<?> getAnalysisByRepoUrl(@RequestParam String repo) {
+        try {
+            var analysis = analysisService.getLatestAnalysisByRepoUrl(repo);
+            if (analysis.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            List<AnalysisResult> results = analysisService.getAnalysisResults(analysis.get().getId());
+            return ResponseEntity.ok(Map.of(
+                    "analysisId", analysis.get().getId(),
+                    "results", results,
+                    "totalIssues", analysis.get().getTotalIssuesFound(),
+                    "healthScore", analysis.get().getRepository().getOverallHealthScore()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }
