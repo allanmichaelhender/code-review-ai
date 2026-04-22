@@ -31,6 +31,7 @@ public class AnalysisService {
     private final LLMService llmService;
     private final ObjectMapper objectMapper;
     private final GitService gitService;
+    private final RedisCacheService redisCacheService;
     
     public AnalysisService(
             CodeRepositoryRepository repositoryRepository,
@@ -38,13 +39,15 @@ public class AnalysisService {
             AnalysisResultRepository analysisResultRepository,
             LLMService llmService,
             ObjectMapper objectMapper,
-            GitService gitService) {
+            GitService gitService,
+            RedisCacheService redisCacheService) {
         this.repositoryRepository = repositoryRepository;
         this.analysisRepository = analysisRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.llmService = llmService;
         this.objectMapper = objectMapper;
         this.gitService = gitService;
+        this.redisCacheService = redisCacheService;
     }
     
     @Transactional
@@ -69,8 +72,21 @@ public class AnalysisService {
                                 .build()
                 ));
         
+        // Get latest commit hash
+        String tempDir = "/tmp/repo-" + System.currentTimeMillis() + "-hash";
+        String commitHash = gitService.getLatestCommitHash(repoUrl, tempDir);
+        
+        // Check cache first
+        Analysis cachedAnalysis = redisCacheService.getCachedAnalysis(repoUrl, commitHash);
+        if (cachedAnalysis != null) {
+            return cachedAnalysis;
+        }
+        
         // Clone repository and analyze files
-        Analysis analysis = performAnalysis(repository, repoUrl, provider);
+        Analysis analysis = performAnalysis(repository, repoUrl, provider, commitHash);
+        
+        // Cache the result
+        redisCacheService.cacheAnalysis(repoUrl, commitHash, analysis);
         
         return analysis;
     }
@@ -109,14 +125,12 @@ public class AnalysisService {
         return analysis;
     }
     
-    private Analysis performAnalysis(CodeRepository repository, String repoUrl, String provider) {
+    private Analysis performAnalysis(CodeRepository repository, String repoUrl, String provider, String commitHash) {
+        long startTime = System.currentTimeMillis();
         try {
             // Clone repository and get code files
             String tempDir = "/tmp/repo-" + System.currentTimeMillis();
             List<Path> codeFiles = gitService.cloneRepository(repoUrl, tempDir);
-            
-            // Get latest commit hash
-            String commitHash = gitService.getLatestCommitHash(repoUrl, tempDir + "-hash");
             
             // Analyze files
             List<AnalysisResult> allResults = new ArrayList<>();
@@ -130,16 +144,11 @@ public class AnalysisService {
                     String fileName = file.getFileName().toString();
                     String language = detectLanguage(fileName);
                     
-                    // Perform security analysis
-                    String securityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "security");
-                    List<AnalysisResult> securityResults = parseAnalysisResults(securityResponse, "security", fileName);
+                    // Perform comprehensive analysis with DeepSeek
+                    String response = llmService.analyzeCodeWithDeepSeek(fileContent, language, "comprehensive");
+                    List<AnalysisResult> results = parseDeepSeekAnalysisResults(response, fileName);
                     
-                    // Perform code quality analysis
-                    String qualityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "quality");
-                    List<AnalysisResult> qualityResults = parseAnalysisResults(qualityResponse, "quality", fileName);
-                    
-                    allResults.addAll(securityResults);
-                    allResults.addAll(qualityResults);
+                    allResults.addAll(results);
                     fileCount++;
                 } catch (IOException e) {
                     // Skip files that can't be read
@@ -147,7 +156,15 @@ public class AnalysisService {
                 }
             }
             
+            // Calculate category counts and health scores
+            int securityCount = (int) allResults.stream().filter(r -> "SECURITY".equals(r.getCategory())).count();
+            int codeQualityCount = (int) allResults.stream().filter(r -> "CODE_QUALITY".equals(r.getCategory())).count();
+            int performanceCount = (int) allResults.stream().filter(r -> "PERFORMANCE".equals(r.getCategory())).count();
+            int bestPracticesCount = (int) allResults.stream().filter(r -> "BEST_PRACTICES".equals(r.getCategory())).count();
+            int maintainabilityCount = (int) allResults.stream().filter(r -> "MAINTAINABILITY".equals(r.getCategory())).count();
+            
             // Create analysis record
+            long duration = System.currentTimeMillis() - startTime;
             Analysis analysis = Analysis.builder()
                     .repository(repository)
                     .commitHash(commitHash)
@@ -159,6 +176,17 @@ public class AnalysisService {
                     .mediumCount((int) allResults.stream().filter(r -> "medium".equals(r.getSeverity())).count())
                     .lowCount((int) allResults.stream().filter(r -> "low".equals(r.getSeverity())).count())
                     .infoCount((int) allResults.stream().filter(r -> "info".equals(r.getSeverity())).count())
+                    .securityCount(securityCount)
+                    .codeQualityCount(codeQualityCount)
+                    .performanceCount(performanceCount)
+                    .bestPracticesCount(bestPracticesCount)
+                    .maintainabilityCount(maintainabilityCount)
+                    .overallHealthScore(calculateHealthScore(allResults))
+                    .securityHealthScore(calculateCategoryHealthScore(allResults, "SECURITY"))
+                    .codeQualityHealthScore(calculateCategoryHealthScore(allResults, "CODE_QUALITY"))
+                    .performanceHealthScore(calculateCategoryHealthScore(allResults, "PERFORMANCE"))
+                    .analysisDurationMs(duration)
+                    .modelVersion("deepseek-coder")
                     .build();
             
             analysis = analysisRepository.save(analysis);
@@ -170,8 +198,7 @@ public class AnalysisService {
             }
             
             // Update repository health score
-            double healthScore = calculateHealthScore(allResults);
-            repository.setOverallHealthScore(healthScore);
+            repository.setOverallHealthScore(analysis.getOverallHealthScore());
             repository.setLastAnalyzedAt(analysis.getAnalyzedAt());
             repository.setLastAnalyzedCommit(commitHash);
             repositoryRepository.save(repository);
@@ -304,6 +331,42 @@ public class AnalysisService {
         }
     }
     
+    private List<AnalysisResult> parseDeepSeekAnalysisResults(String response, String fileName) {
+        List<AnalysisResult> results = new ArrayList<>();
+        
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            JsonNode issues = root.get("issues");
+            
+            if (issues != null && issues.isArray()) {
+                for (JsonNode node : issues) {
+                    AnalysisResult result = AnalysisResult.builder()
+                            .category(node.has("category") ? node.get("category").asText() : "CODE_QUALITY")
+                            .type(node.has("type") ? node.get("type").asText() : "UNKNOWN")
+                            .severity(node.has("severity") ? node.get("severity").asText() : "info")
+                            .message(node.has("message") ? node.get("message").asText() : "No message")
+                            .suggestion(node.has("suggestion") ? node.get("suggestion").asText() : null)
+                            .explanation(node.has("explanation") ? node.get("explanation").asText() : null)
+                            .confidenceScore(node.has("confidenceScore") ? node.get("confidenceScore").asDouble() : 0.8)
+                            .impactScore(node.has("impactScore") ? node.get("impactScore").asDouble() : null)
+                            .effortScore(node.has("effortScore") ? node.get("effortScore").asDouble() : null)
+                            .cweId(node.has("cweId") ? node.get("cweId").asText() : null)
+                            .owaspCategory(node.has("owaspCategory") ? node.get("owaspCategory").asText() : null)
+                            .filePath(fileName)
+                            .lineNumber(node.has("lineNumber") ? node.get("lineNumber").asInt() : null)
+                            .codeSnippet(node.has("codeSnippet") ? node.get("codeSnippet").asText() : null)
+                            .build();
+                    results.add(result);
+                }
+            }
+        } catch (Exception e) {
+            // If JSON parsing fails, return empty list
+            return results;
+        }
+        
+        return results;
+    }
+    
     private List<AnalysisResult> parseAnalysisResults(String response, String type, String fileName) {
         List<AnalysisResult> results = new ArrayList<>();
         
@@ -371,6 +434,27 @@ public class AnalysisService {
         score -= criticalCount * 0.3;
         score -= highCount * 0.15;
         score -= mediumCount * 0.05;
+        
+        return Math.max(0.0, Math.min(1.0, score));
+    }
+    
+    private double calculateCategoryHealthScore(List<AnalysisResult> results, String category) {
+        List<AnalysisResult> categoryResults = results.stream()
+                .filter(r -> category.equals(r.getCategory()))
+                .toList();
+        
+        if (categoryResults.isEmpty()) {
+            return 1.0;
+        }
+        
+        long criticalCount = categoryResults.stream().filter(r -> "critical".equals(r.getSeverity())).count();
+        long highCount = categoryResults.stream().filter(r -> "high".equals(r.getSeverity())).count();
+        long mediumCount = categoryResults.stream().filter(r -> "medium".equals(r.getSeverity())).count();
+        
+        double score = 1.0;
+        score -= criticalCount * 0.4;
+        score -= highCount * 0.2;
+        score -= mediumCount * 0.1;
         
         return Math.max(0.0, Math.min(1.0, score));
     }
