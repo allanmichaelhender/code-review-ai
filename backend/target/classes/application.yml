@@ -1,13 +1,13 @@
 spring:
   application:
     name: code-review-platform
-  
+
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/codereview}
     username: ${DATABASE_USERNAME:codereview}
     password: ${DATABASE_PASSWORD:codereview}
     driver-class-name: org.postgresql.Driver
-  
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -15,16 +15,16 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-  
+        format_sql: false
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-  
+
   flyway:
     enabled: false
-  
+
   batch:
     job:
       enabled: false
@@ -36,13 +36,16 @@ logging:
   level:
     com.codereview: DEBUG
     org.springframework.web: INFO
-    org.hibernate: INFO
+    org.hibernate: WARN
 
 gemini:
   api-key: ${GEMINI_API_KEY}
 
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}
+
+openrouter:
+  api-key: ${OPEN_ROUTER_API_KEY}
 
 github:
   api-token: ${GITHUB_API_TOKEN}

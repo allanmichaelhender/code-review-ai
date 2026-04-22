@@ -2,19 +2,23 @@
 
 ## Project Overview
 
-AI-powered code review platform built with Spring Boot (Java 21) and React (TypeScript) that analyzes GitHub repositories using LLMs (Gemini, DeepSeek) to identify security vulnerabilities and code quality issues.
+AI-powered code review platform built with Spring Boot (Java 21) and React (TypeScript) that analyzes GitHub repositories using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
 
-## Tech Stack
+### Tech Stack
 
-### Backend
+**Backend:**
 
-- **Framework**: Spring Boot 3.2.0
-- **Language**: Java 21
-- **Database**: PostgreSQL 15
-- **Cache**: Redis 7
-- **ORM**: Spring Data JPA + Hibernate
-- **Git Operations**: JGit 6.8.0
-- **LLM Integration**: Custom abstraction for Gemini and DeepSeek APIs
+- Java 21
+- Spring Boot 3.2.0
+- Spring Data JPA with Hibernate
+- PostgreSQL database
+- Redis for caching
+- JGit for Git operations
+- Lombok for code generation
+- Maven for dependency management
+- Hibernate ddl-auto: update for automatic schema sync
+- OpenRouter API with NVIDIA Nemotron-3 Nano 30B model (free tier)
+- Spring Scheduling for automated weekly analysis
 
 ### Frontend
 
@@ -29,6 +33,7 @@ AI-powered code review platform built with Spring Boot (Java 21) and React (Type
 - **Containerization**: Docker + Docker Compose
 - **Reverse Proxy**: Nginx
 - **Development**: Hot reload with docker-compose.override.yml
+- **Database Management**: pgAdmin 4 (http://localhost:5050)
 
 ## Project Structure
 
@@ -84,9 +89,14 @@ code-review-ai/
 ### Database Schema
 
 - Using BIGSERIAL for ID columns to match JPA Long type
-- Disabled Flyway to avoid migration checksum issues
-- Using Hibernate ddl-auto: update for schema management
+- Using Hibernate ddl-auto: update for automatic schema sync
+- Redis caching for analysis results (24-hour TTL)
 - DataLoader component for programmatic seed data
+
+### Analysis Schema
+
+- **AnalysisResult**: category, type, severity, explanation, confidence/impact/effort scores, CWE ID, OWASP category
+- **Analysis**: category counts, health scores per category, analysis duration, tokens used, model version
 
 ### Git Operations (Smart Cloning)
 
@@ -95,7 +105,7 @@ code-review-ai/
 - Aggressive file filtering to exclude non-code files
 - Auto-cleanup of cloned repositories
 - Binary file detection via null bytes and non-printable character analysis
-- Max 50 files analyzed per repository for MVP
+- Max 5 files analyzed per repository for MVP (faster analysis)
 
 ### File Filtering
 
@@ -117,15 +127,57 @@ The platform automatically excludes:
 - TailwindCSS 4 with Vite plugin (no PostCSS config needed)
 - Path alias configured: `@` maps to `./src`
 - Development server on port 8000
-- Vite proxy to backend: `http://backend:8080`
+- Vite proxy to backend: `http://172.19.0.5:8080` (backend container IP)
+- Proxy timeout: 5 minutes for long-running analysis requests
+
+### Scheduled Analysis
+
+- **Weekly Job**: Automatically analyzes all repositories every Sunday at midnight
+- **Cron Expression**: `0 0 0 ? * SUN`
+- **Service**: `ScheduledAnalysisService` with `@Scheduled` annotation
+- **Manual Trigger**: `POST /api/admin/trigger-weekly-analysis`
+- **Error Handling**: Comprehensive logging and per-repository error tracking
+- **Model**: Uses OpenRouter NVIDIA Nemotron-3 Nano 30B model
+
+### Analysis Categories
+
+- **SECURITY**: SQL injection, XSS, hardcoded secrets, authentication issues, input validation
+- **CODE_QUALITY**: Complexity, duplication, maintainability, code smells
+- **PERFORMANCE**: Inefficient algorithms, resource leaks, performance bottlenecks
+- **BEST_PRACTICES**: Language-specific best practices, design patterns
+- **MAINTAINABILITY**: Documentation, naming conventions, code organization
+
+### Analysis Severity Levels
+
+- **critical**: Security vulnerabilities, data exposure
+- **high**: Major issues that should be fixed
+- **medium**: Moderate issues
+- **low**: Minor issues
+- **info**: Informational notes
+
+### Analysis Health Scores
+
+- **overall_health_score**: 0.0 to 1.0, overall repository health
+- **security_health_score**: 0.0 to 1.0, security-specific health
+- **code_quality_health_score**: 0.0 to 1.0, code quality health
+- **performance_health_score**: 0.0 to 1.0, performance health
+
+### Caching Strategy
+
+- **Redis** for caching analysis results
+- **Cache key**: `analysis:{repoUrl}:{commitHash}`
+- **TTL**: 24 hours
+- **Cache invalidation**: On new commits
 
 ## Environment Variables
 
 Required:
 
 - `GEMINI_API_KEY`: Google Gemini API key
-- `DEEPSEEK_API_KEY`: DeepSeek API key
+- `OPEN_ROUTER_API_KEY`: OpenRouter API key
 - `GITHUB_API_TOKEN`: GitHub personal access token (for private repositories)
+- `PGADMIN_DEFAULT_EMAIL`: Email for pgAdmin login
+- `PGADMIN_DEFAULT_PASSWORD`: Password for pgAdmin login
 
 Database (defaults in docker-compose.yml):
 
@@ -173,6 +225,7 @@ npm run dev
 - Frontend (prod): http://localhost
 - Backend API: http://localhost:8080/api
 - Nginx: http://localhost
+- pgAdmin: http://localhost:5050
 
 ## Code Conventions
 
@@ -236,6 +289,10 @@ npm run dev
 - `GET /api/analysis/{id}/results` - Get analysis results
 - `GET /api/analysis/by-repo?repo=<url>` - Get latest analysis by repository URL
 
+### Admin
+
+- `POST /api/admin/trigger-weekly-analysis` - Manually trigger weekly analysis job
+
 ## Current Status
 
 ### Completed
@@ -243,30 +300,37 @@ npm run dev
 - ✅ Project structure and basic setup
 - ✅ Spring Boot backend with JPA, PostgreSQL, Redis
 - ✅ React TypeScript frontend with Vite
-- ✅ LLM provider abstraction (Gemini, DeepSeek)
+- ✅ LLM provider abstraction (Gemini, OpenRouter)
 - ✅ Smart repository cloning with file filtering
 - ✅ Basic analysis service (security + code quality)
-- ✅ Seed data with pre-cached repository analysis
+- ✅ Seed data with pre-cached repository analysis (disabled for real analysis)
 - ✅ Docker configuration for development and production
 - ✅ TailwindCSS 4 and shadcn/ui components
 - ✅ Explore page with card layout and health score visualization
+- ✅ Landing page redesign with hero section and features
+- ✅ Demo page improvements with loading states and error handling
+- ✅ pgAdmin 4 integration for database management
+- ✅ Fixed repository lookup to use URL instead of owner/name
+- ✅ Frontend configured to use OpenRouter provider by default
+- ✅ OpenRouter API integration with NVIDIA Nemotron-3 Nano 30B model (free tier)
+- ✅ Reduced file analysis limit to 5 files for faster MVP testing
+- ✅ Fixed frontend proxy timeout (5 minutes) for long-running analysis
+- ✅ Scheduled weekly analysis job (runs every Sunday at midnight)
+- ✅ Manual trigger endpoint for testing weekly analysis
 
 ### In Progress
 
-- ⏳ Define analysis output structure and data model
-- ⏳ Implement DeepSeek API calls for code analysis
-- ⏳ Implement analysis result caching in Redis
-- ⏳ Create seed data with real DeepSeek analysis results
+- ⏳ Testing real OpenRouter analysis on live repositories
 
 ### Planned
 
-- 📋 Landing page redesign with hero section
-- 📋 Demo page improvements with better loading states
 - 📋 Real-time analysis streaming (WebSocket)
 - 📋 Additional analysis types (performance, dependency scanning)
 - 📋 Authentication and authorization
 - 📋 Analysis history and comparison
 - 📋 Production deployment configuration
+- 📋 Additional LLM providers (Claude, GPT-4, DeepSeek fallback)
+- 📋 Export functionality (PDF reports)
 
 ## Documentation
 

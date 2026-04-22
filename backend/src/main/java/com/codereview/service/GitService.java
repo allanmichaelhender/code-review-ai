@@ -58,7 +58,6 @@ public class GitService {
             ".nuxt",
             "out",
             ".cache",
-            "models",
             "data",
             "datasets",
             "checkpoints",
@@ -72,23 +71,20 @@ public class GitService {
 
     /**
      * Clone a repository and return paths of code files for analysis
+     * Caller is responsible for cleanup
      */
     public List<Path> cloneRepository(String repoUrl, String targetDir) throws GitAPIException, IOException {
         File targetDirFile = new File(targetDir);
-        
+
         // Clone the repository
-        try (Git git = Git.cloneRepository()
+        Git.cloneRepository()
                 .setURI(repoUrl)
                 .setDirectory(targetDirFile)
                 .setDepth(1) // Shallow clone to save space
-                .call()) {
-            
-            // Get all files that should be analyzed
-            return collectCodeFiles(targetDirFile.toPath());
-        } finally {
-            // Cleanup: delete the cloned repository after analysis
-            deleteDirectory(targetDirFile);
-        }
+                .call();
+
+        // Get all files that should be analyzed
+        return collectCodeFiles(targetDirFile.toPath());
     }
 
     /**
@@ -96,12 +92,82 @@ public class GitService {
      */
     private List<Path> collectCodeFiles(Path rootPath) throws IOException {
         List<Path> codeFiles = new ArrayList<>();
-        
+        List<Path> allFiles = new ArrayList<>();
+        List<Path> excludedByExtension = new ArrayList<>();
+        List<Path> excludedByDirectory = new ArrayList<>();
+        List<Path> excludedBySize = new ArrayList<>();
+
+        System.out.println("Starting file collection from: " + rootPath);
+
         Files.walk(rootPath)
                 .filter(path -> !Files.isDirectory(path))
-                .filter(this::shouldIncludeFile)
-                .forEach(codeFiles::add);
-        
+                .forEach(allFiles::add);
+
+        System.out.println("Total files in repository: " + allFiles.size());
+
+        for (Path path : allFiles) {
+            String fileName = path.getFileName().toString().toLowerCase();
+            String extension = getFileExtension(fileName);
+
+            // Check if extension is excluded
+            if (EXCLUDED_EXTENSIONS.contains(extension)) {
+                excludedByExtension.add(path);
+                continue;
+            }
+
+            // Check if file is in excluded directory
+            // Only check path components relative to repository root, not temp directory prefix
+            int rootPathLength = rootPath.getNameCount();
+            if (path.getNameCount() > rootPathLength) {
+                Path relativePath = path.subpath(rootPathLength, path.getNameCount());
+                boolean inExcludedDir = false;
+                String excludedDirName = null;
+                for (Path part : relativePath) {
+                    if (EXCLUDED_DIRECTORIES.contains(part.toString())) {
+                        inExcludedDir = true;
+                        excludedDirName = part.toString();
+                        break;
+                    }
+                }
+                if (inExcludedDir) {
+                    excludedByDirectory.add(path);
+                    if (excludedByDirectory.size() <= 5) {
+                        System.out.println("Excluded by directory '" + excludedDirName + "': " + path);
+                    }
+                    continue;
+                }
+            }
+
+            // Check file size
+            try {
+                long fileSize = Files.size(path);
+                if (fileSize > MAX_FILE_SIZE) {
+                    excludedBySize.add(path);
+                    continue;
+                }
+            } catch (IOException e) {
+                System.out.println("Failed to get file size for " + path + ": " + e.getMessage());
+                continue;
+            }
+
+            // Check if binary
+            if (isBinaryFile(path)) {
+                continue;
+            }
+
+            codeFiles.add(path);
+        }
+
+        System.out.println("File collection complete. Total files found: " + codeFiles.size());
+        System.out.println("Excluded by extension: " + excludedByExtension.size());
+        System.out.println("Excluded by directory: " + excludedByDirectory.size());
+        System.out.println("Excluded by size: " + excludedBySize.size());
+
+        if (codeFiles.isEmpty() && !allFiles.isEmpty()) {
+            System.out.println("Sample files found in repository:");
+            allFiles.stream().limit(5).forEach(f -> System.out.println("  " + f));
+        }
+
         return codeFiles;
     }
 
@@ -199,7 +265,7 @@ public class GitService {
     /**
      * Delete directory recursively
      */
-    private void deleteDirectory(File directory) {
+    public void deleteDirectory(File directory) {
         File[] files = directory.listFiles();
         if (files != null) {
             for (File file : files) {

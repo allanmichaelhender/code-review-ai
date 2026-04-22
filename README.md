@@ -1,6 +1,6 @@
 # AI Code Review Platform
 
-An AI-powered code review platform built with Spring Boot and React TypeScript that analyzes GitHub repositories using LLMs (Gemini, DeepSeek) to identify security vulnerabilities and code quality issues.
+An AI-powered code review platform built with Spring Boot and React TypeScript that analyzes GitHub repositories using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
 
 ## Tech Stack
 
@@ -11,8 +11,9 @@ An AI-powered code review platform built with Spring Boot and React TypeScript t
 - Redis 7
 - JGit 6.8.0 for repository cloning
 - Google Gemini API
-- DeepSeek API
+- OpenRouter API with NVIDIA Nemotron-3 Nano 30B model (free tier)
 - Spring Data JPA + Hibernate
+- Spring Scheduling for automated weekly analysis
 
 **Frontend:**
 
@@ -28,6 +29,7 @@ An AI-powered code review platform built with Spring Boot and React TypeScript t
 - Docker Compose
 - Nginx reverse proxy
 - Docker multi-stage builds
+- pgAdmin 4 for database management (http://localhost:5050)
 
 ## Getting Started
 
@@ -48,8 +50,10 @@ cp .env.example .env
 Then add your API keys:
 
 - `GEMINI_API_KEY`: Your Google Gemini API key
-- `DEEPSEEK_API_KEY`: Your DeepSeek API key
+- `OPEN_ROUTER_API_KEY`: Your OpenRouter API key
 - `GITHUB_API_TOKEN`: Your GitHub API token (for private repositories)
+- `PGADMIN_DEFAULT_EMAIL`: Email for pgAdmin login (default: admin@codereview.local)
+- `PGADMIN_DEFAULT_PASSWORD`: Password for pgAdmin login (default: admin123)
 
 ### Running with Docker
 
@@ -70,6 +74,7 @@ The application will be available at:
 - Frontend: http://localhost:8000 (dev mode) or http://localhost (production)
 - Backend API: http://localhost:8080/api
 - Nginx: http://localhost (production)
+- pgAdmin: http://localhost:5050
 
 ### Local Development
 
@@ -121,11 +126,18 @@ code-review-ai/
   - Binary file detection
   - Auto-cleanup after analysis
 
-- **AI-Powered Analysis**: Uses LLMs to analyze code for:
+- **AI-Powered Analysis**: Uses OpenRouter API with NVIDIA Nemotron-3 Nano 30B model to analyze code for:
   - Security vulnerabilities (hardcoded secrets, SQL injection, XSS, etc.)
   - Code quality issues (complexity, duplication, best practices)
   - Performance issues
-  - Dependency vulnerabilities
+  - Best practices violations
+  - Maintainability concerns
+  - MVP limit: 5 files per repository for faster analysis
+
+- **Scheduled Weekly Analysis**: Automatically analyzes all repositories in the database every Sunday at midnight
+  - Manual trigger endpoint: `POST /api/admin/trigger-weekly-analysis`
+  - Comprehensive logging and error handling
+  - Uses OpenRouter NVIDIA Nemotron-3 Nano 30B model
 
 - **Pre-Analyzed Repository Showcase**: View pre-cached analysis results for sample repositories
 
@@ -166,9 +178,14 @@ The platform automatically excludes the following files during analysis:
 ### Database Schema
 
 - Using BIGSERIAL for ID columns to match JPA Long type
-- Disabled Flyway to avoid migration checksum issues
-- Using Hibernate ddl-auto: update for schema management
+- Using Hibernate ddl-auto: update for automatic schema sync
+- Redis caching for analysis results (24-hour TTL)
 - DataLoader component for programmatic seed data
+
+### Analysis Schema
+
+- **AnalysisResult**: category, type, severity, explanation, confidence/impact/effort scores, CWE ID, OWASP category
+- **Analysis**: category counts, health scores per category, analysis duration, tokens used, model version
 
 ### Git Operations
 
@@ -190,27 +207,37 @@ The platform automatically excludes the following files during analysis:
 - ✅ Project structure and basic setup
 - ✅ Spring Boot backend with JPA, PostgreSQL, Redis
 - ✅ React TypeScript frontend with Vite
-- ✅ LLM provider abstraction (Gemini, DeepSeek)
+- ✅ LLM API: Requires valid API keys (Gemini, OpenRouter)
 - ✅ Smart repository cloning with file filtering
-- ✅ Basic analysis service (security + code quality)
-- ✅ Seed data with pre-cached repository analysis
+- ✅ OpenRouter API integration with NVIDIA Nemotron-3 Nano 30B model (free tier)
+- ✅ Redis caching for analysis results
+- ✅ Enhanced analysis schema with categories and health scores
+- ✅ Seed data with pre-cached repository analysis (disabled for real analysis)
 - ✅ Docker configuration for development and production
 - ✅ TailwindCSS 4 and shadcn/ui components
 - ✅ Explore page with card layout and health score visualization
+- ✅ Landing page redesign with hero section and features
+- ✅ Demo page improvements with loading states and error handling
+- ✅ pgAdmin 4 integration for database management
+- ✅ Fixed repository lookup to use URL instead of owner/name
+- ✅ Frontend configured to use OpenRouter provider by default
+- ✅ Reduced file analysis limit to 5 files for faster MVP testing
+- ✅ Fixed frontend proxy timeout (5 minutes) for long-running analysis
+- ✅ Scheduled weekly analysis job (runs every Sunday at midnight)
+- ✅ Manual trigger endpoint for testing weekly analysis
 
 ### In Progress
 
-- ⏳ Landing page redesign with hero section
-- ⏳ Demo page improvements with better loading states
-- ⏳ Responsive design enhancements
+- ⏳ Testing real DeepSeek analysis on live repositories
 
 ### Planned
 
 - 📋 Real-time analysis streaming (WebSocket)
-- 📋 Additional analysis types (performance, dependency scanning)
 - 📋 Authentication and authorization
 - 📋 Analysis history and comparison
 - 📋 Production deployment configuration
+- 📋 Additional LLM providers (Claude, GPT-4)
+- 📋 Export functionality (PDF reports)
 
 ## License
 

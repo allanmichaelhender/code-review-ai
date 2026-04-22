@@ -13,6 +13,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,7 +63,7 @@ public class AnalysisService {
         String name = parts[1];
         
         // Get or create repository
-        CodeRepository repository = repositoryRepository.findByOwnerAndName(owner, name)
+        CodeRepository repository = repositoryRepository.findByUrl(repoUrl)
                 .orElseGet(() -> repositoryRepository.save(
                         CodeRepository.builder()
                                 .owner(owner)
@@ -74,7 +75,12 @@ public class AnalysisService {
         
         // Get latest commit hash
         String tempDir = "/tmp/repo-" + System.currentTimeMillis() + "-hash";
-        String commitHash = gitService.getLatestCommitHash(repoUrl, tempDir);
+        String commitHash;
+        try {
+            commitHash = gitService.getLatestCommitHash(repoUrl, tempDir);
+        } catch (Exception e) {
+            commitHash = "unknown-" + System.currentTimeMillis();
+        }
         
         // Check cache first
         Analysis cachedAnalysis = redisCacheService.getCachedAnalysis(repoUrl, commitHash);
@@ -127,42 +133,49 @@ public class AnalysisService {
     
     private Analysis performAnalysis(CodeRepository repository, String repoUrl, String provider, String commitHash) {
         long startTime = System.currentTimeMillis();
+        String tempDir = "/tmp/repo-" + System.currentTimeMillis();
         try {
             // Clone repository and get code files
-            String tempDir = "/tmp/repo-" + System.currentTimeMillis();
             List<Path> codeFiles = gitService.cloneRepository(repoUrl, tempDir);
-            
+            System.out.println("Cloned repository, found " + codeFiles.size() + " code files to analyze");
+
             // Analyze files
             List<AnalysisResult> allResults = new ArrayList<>();
             int fileCount = 0;
-            
+
             for (Path file : codeFiles) {
-                if (fileCount >= 50) break; // Limit to 50 files for MVP
-                
+                if (fileCount >= 5) break; // Limit to 5 files for MVP
+
                 try {
                     String fileContent = Files.readString(file);
                     String fileName = file.getFileName().toString();
                     String language = detectLanguage(fileName);
-                    
-                    // Perform comprehensive analysis with DeepSeek
-                    String response = llmService.analyzeCodeWithDeepSeek(fileContent, language, "comprehensive");
+                    System.out.println("Analyzing file " + (fileCount + 1) + "/" + codeFiles.size() + ": " + fileName + " (" + language + ")");
+
+                    // Perform comprehensive analysis with OpenRouter
+                    String response = llmService.analyzeCodeWithOpenRouter(fileContent, language, "comprehensive");
+                    System.out.println("OpenRouter response for " + fileName + ": " + response.substring(0, Math.min(200, response.length())));
                     List<AnalysisResult> results = parseDeepSeekAnalysisResults(response, fileName);
-                    
+                    System.out.println("Parsed " + results.size() + " issues from " + fileName);
+
                     allResults.addAll(results);
                     fileCount++;
                 } catch (IOException e) {
+                    System.out.println("Failed to read file: " + e.getMessage());
                     // Skip files that can't be read
                     continue;
                 }
             }
-            
+
+            System.out.println("Total files analyzed: " + fileCount + ", Total issues found: " + allResults.size());
+
             // Calculate category counts and health scores
             int securityCount = (int) allResults.stream().filter(r -> "SECURITY".equals(r.getCategory())).count();
             int codeQualityCount = (int) allResults.stream().filter(r -> "CODE_QUALITY".equals(r.getCategory())).count();
             int performanceCount = (int) allResults.stream().filter(r -> "PERFORMANCE".equals(r.getCategory())).count();
             int bestPracticesCount = (int) allResults.stream().filter(r -> "BEST_PRACTICES".equals(r.getCategory())).count();
             int maintainabilityCount = (int) allResults.stream().filter(r -> "MAINTAINABILITY".equals(r.getCategory())).count();
-            
+
             // Create analysis record
             long duration = System.currentTimeMillis() - startTime;
             Analysis analysis = Analysis.builder()
@@ -188,24 +201,27 @@ public class AnalysisService {
                     .analysisDurationMs(duration)
                     .modelVersion("deepseek-coder")
                     .build();
-            
+
             analysis = analysisRepository.save(analysis);
-            
+
             // Save analysis results
             for (AnalysisResult result : allResults) {
                 result.setAnalysis(analysis);
                 analysisResultRepository.save(result);
             }
-            
+
             // Update repository health score
             repository.setOverallHealthScore(analysis.getOverallHealthScore());
             repository.setLastAnalyzedAt(analysis.getAnalyzedAt());
             repository.setLastAnalyzedCommit(commitHash);
             repositoryRepository.save(repository);
-            
+
             return analysis;
         } catch (Exception e) {
             throw new RuntimeException("Failed to analyze repository: " + e.getMessage(), e);
+        } finally {
+            // Cleanup: delete the cloned repository
+            gitService.deleteDirectory(new File(tempDir));
         }
     }
 
@@ -236,7 +252,7 @@ public class AnalysisService {
             ));
             
             for (Path file : codeFiles) {
-                if (fileCount >= 50) break; // Limit to 50 files for MVP
+                if (fileCount >= 5) break; // Limit to 5 files for MVP
                 
                 try {
                     String fileContent = Files.readString(file);
@@ -479,13 +495,7 @@ public class AnalysisService {
     }
 
     public java.util.Optional<Analysis> getLatestAnalysisByRepoUrl(String repoUrl) {
-        String[] parts = parseGitHubUrl(repoUrl);
-        if (parts == null) {
-            return java.util.Optional.empty();
-        }
-        String owner = parts[0];
-        String name = parts[1];
-        return repositoryRepository.findByOwnerAndName(owner, name)
+        return repositoryRepository.findByUrl(repoUrl)
                 .flatMap(repo -> analysisRepository.findTopByRepositoryOrderByAnalyzedAtDesc(repo));
     }
 
