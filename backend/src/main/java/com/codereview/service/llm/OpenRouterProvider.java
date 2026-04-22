@@ -2,9 +2,12 @@ package com.codereview.service.llm;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +15,10 @@ import java.util.Map;
 
 @Service
 public class OpenRouterProvider implements LLMProvider {
+    
+    private static final Logger logger = LoggerFactory.getLogger(OpenRouterProvider.class);
+    private static final int MAX_RETRIES = 5;
+    private static final long INITIAL_BACKOFF_MS = 1000; // 1 second
     
     private final WebClient webClient;
     private final String apiKey;
@@ -29,27 +36,56 @@ public class OpenRouterProvider implements LLMProvider {
     public String analyzeCode(String code, String language, String analysisType) {
         String prompt = buildPrompt(code, language, analysisType);
         
-        try {
-            String response = webClient.post()
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .header("HTTP-Referer", "http://localhost:8080")
-                    .header("X-Title", "Code Review AI")
-                    .bodyValue(Map.of(
-                            "model", "nvidia/nemotron-3-nano-30b-a3b:free",
-                            "messages", List.of(
-                                    Map.of("role", "user", "content", prompt)
-                            ),
-                            "temperature", 0.7
-                    ))
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-            
-            return extractContent(response);
-        } catch (Exception e) {
-            return "Error analyzing code: " + e.getMessage();
+        int retryCount = 0;
+        long backoffMs = INITIAL_BACKOFF_MS;
+        
+        while (retryCount <= MAX_RETRIES) {
+            try {
+                String response = webClient.post()
+                        .header("Authorization", "Bearer " + apiKey)
+                        .header("Content-Type", "application/json")
+                        .header("HTTP-Referer", "http://localhost:8080")
+                        .header("X-Title", "Code Review AI")
+                        .bodyValue(Map.of(
+                                "model", "nvidia/nemotron-3-nano-30b-a3b:free",
+                                "messages", List.of(
+                                        Map.of("role", "user", "content", prompt)
+                                ),
+                                "temperature", 0.7
+                        ))
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .block();
+                
+                return extractContent(response);
+            } catch (WebClientResponseException e) {
+                if (e.getStatusCode().value() == 429) {
+                    retryCount++;
+                    if (retryCount > MAX_RETRIES) {
+                        logger.error("Max retries ({}) exceeded for rate limit", MAX_RETRIES);
+                        return "Error analyzing code: Rate limit exceeded after " + MAX_RETRIES + " retries";
+                    }
+                    
+                    logger.warn("Rate limit hit (429), retry {} of {} after {}ms", retryCount, MAX_RETRIES, backoffMs);
+                    
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return "Error analyzing code: Interrupted during retry backoff";
+                    }
+                    
+                    // Exponential backoff: double the delay each time
+                    backoffMs *= 2;
+                } else {
+                    return "Error analyzing code: " + e.getMessage();
+                }
+            } catch (Exception e) {
+                return "Error analyzing code: " + e.getMessage();
+            }
         }
+        
+        return "Error analyzing code: Max retries exceeded";
     }
     
     @Override

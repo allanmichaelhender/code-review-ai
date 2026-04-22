@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface AnalysisRepository extends JpaRepository<Analysis, Long> {
     Optional<Analysis> findTopByRepositoryOrderByAnalyzedAtDesc(CodeRepository repository);
     Optional<Analysis> findByRepositoryIdAndCommitHash(Long repositoryId, String commitHash);
+    java.util.List<Analysis> findByRepositoryId(Long repositoryId);
 }

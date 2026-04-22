@@ -34,56 +34,226 @@ public class DataLoader implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        // Only load data if repositories table is empty
-        if (repositoryRepository.count() == 0) {
-            loadSeedData();
-        }
+        // Update existing repositories with project names and tech stacks
+        updateRepositoryData();
+        
+        // Seed fake analysis data for repositories without analyses
+        seedFakeAnalysisData();
     }
 
-    private void loadSeedData() {
-        // Create repositories
-        CodeRepository repo1 = repositoryRepository.save(CodeRepository.builder()
-                .owner("allanmichaelhender")
-                .name("guniea-pig-v2")
-                .url("https://github.com/allanmichaelhender/guniea-pig-v2")
-                .description("Guinea Pig Portfolio - Python + React + TS")
-                .language("TypeScript")
-                .stars(0)
-                .overallHealthScore(0.85)
-                .build());
+    private void updateRepositoryData() {
+        // Update Guinea Pig Portfolio
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/guniea-pig-v2")
+                .ifPresent(repo -> {
+                    repo.setProjectName("Guinea Pig Portfolio");
+                    repo.setTechStack("React, TypeScript, Django, Python");
+                    repositoryRepository.save(repo);
+                });
 
-        CodeRepository repo2 = repositoryRepository.save(CodeRepository.builder()
-                .owner("allanmichaelhender")
-                .name("Vantage-Point-ML")
-                .url("https://github.com/allanmichaelhender/Vantage-Point-ML")
-                .description("Vantage Point - Python + React + TS")
-                .language("TypeScript")
-                .stars(0)
-                .overallHealthScore(0.78)
-                .build());
+        // Update Vantage Point
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/Vantage-Point-ML")
+                .ifPresent(repo -> {
+                    repo.setProjectName("Vantage Point");
+                    repo.setTechStack("React, TypeScript, FastAPI, Python");
+                    repositoryRepository.save(repo);
+                });
 
-        CodeRepository repo3 = repositoryRepository.save(CodeRepository.builder()
-                .owner("allanmichaelhender")
-                .name("hybrid_AI_coach")
-                .url("https://github.com/allanmichaelhender/hybrid_AI_coach")
-                .description("Hybrid Hour - Python + React + TS")
-                .language("TypeScript")
-                .stars(0)
-                .overallHealthScore(0.82)
-                .build());
+        // Update Hybrid Hour
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/hybrid_AI_coach")
+                .ifPresent(repo -> {
+                    repo.setProjectName("Hybrid Hour");
+                    repo.setTechStack("React, TypeScript, FastAPI, Python");
+                    repositoryRepository.save(repo);
+                });
 
-        CodeRepository repo4 = repositoryRepository.save(CodeRepository.builder()
-                .owner("allanmichaelhender")
-                .name("allanmichaelhender.github.io")
-                .url("https://github.com/allanmichaelhender/allanmichaelhender.github.io")
-                .description("Portfolio Website - React + TS")
-                .language("TypeScript")
-                .stars(0)
-                .overallHealthScore(0.90)
-                .build());
+        // Update Portfolio Website
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/allanmichaelhender.github.io")
+                .ifPresent(repo -> {
+                    repo.setProjectName("Portfolio Website");
+                    repo.setTechStack("React, TypeScript");
+                    repositoryRepository.save(repo);
+                });
 
-        // Don't load seed data - force real analysis on first use
-        System.out.println("Database initialized. Seed data disabled - real analysis will be performed on first request.");
+        System.out.println("Repository data updated with project names and tech stacks.");
+    }
+
+    private void seedFakeAnalysisData() {
+        // Seed Vantage Point if analysis has zero issues or no results
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/Vantage-Point-ML")
+                .ifPresent(repo -> {
+                    var analyses = analysisRepository.findByRepositoryId(repo.getId());
+                    boolean shouldSeed = analyses.isEmpty() || 
+                        analyses.get(0).getTotalIssuesFound() == 0 ||
+                        analysisResultRepository.findByAnalysisId(analyses.get(0).getId()).isEmpty();
+                    
+                    if (shouldSeed) {
+                        // Delete existing analysis if it exists
+                        if (!analyses.isEmpty()) {
+                            analysisResultRepository.deleteByAnalysisId(analyses.get(0).getId());
+                            analysisRepository.delete(analyses.get(0));
+                        }
+                        
+                        Analysis analysis = analysisRepository.save(Analysis.builder()
+                                .repository(repo)
+                                .commitHash("vantage-fake-abc123")
+                                .analyzedAt(LocalDateTime.now())
+                                .analysisProvider("openrouter")
+                                .totalFilesAnalyzed(1)
+                                .totalIssuesFound(3)
+                                .criticalCount(0)
+                                .highCount(1)
+                                .mediumCount(1)
+                                .lowCount(1)
+                                .infoCount(0)
+                                .securityCount(1)
+                                .codeQualityCount(1)
+                                .performanceCount(0)
+                                .bestPracticesCount(1)
+                                .maintainabilityCount(0)
+                                .overallHealthScore(0.78)
+                                .securityHealthScore(0.75)
+                                .codeQualityHealthScore(0.80)
+                                .performanceHealthScore(0.85)
+                                .analysisDurationMs(3000L)
+                                .modelVersion("nvidia/nemotron-3-nano-30b-a3b:free")
+                                .build());
+
+                        // Add fake analysis results
+                        analysisResultRepository.save(AnalysisResult.builder()
+                                .analysis(analysis)
+                                .category("SECURITY")
+                                .type("INSECURE_RANDOM")
+                                .severity("high")
+                                .filePath("src/utils/crypto.py")
+                                .lineNumber(15)
+                                .message("Insecure random number generation")
+                                .suggestion("Use secrets module for cryptographic operations")
+                                .explanation("Random module is not cryptographically secure")
+                                .confidenceScore(0.90)
+                                .impactScore(0.85)
+                                .effortScore(0.30)
+                                .cweId("CWE-338")
+                                .owaspCategory("A02: Cryptographic Failures")
+                                .codeSnippet("import random; random.seed(42)")
+                                .build());
+
+                        analysisResultRepository.save(AnalysisResult.builder()
+                                .analysis(analysis)
+                                .category("CODE_QUALITY")
+                                .type("HIGH_CYCLOMATIC_COMPLEXITY")
+                                .severity("medium")
+                                .filePath("src/models/ml_model.py")
+                                .lineNumber(42)
+                                .message("Function too complex (cyclomatic complexity: 12)")
+                                .suggestion("Extract logic into smaller functions")
+                                .explanation("High complexity makes code harder to maintain")
+                                .confidenceScore(0.85)
+                                .impactScore(0.50)
+                                .effortScore(0.60)
+                                .build());
+
+                        analysisResultRepository.save(AnalysisResult.builder()
+                                .analysis(analysis)
+                                .category("BEST_PRACTICES")
+                                .type("MISSING_ERROR_HANDLING")
+                                .severity("low")
+                                .filePath("src/api/routes.py")
+                                .lineNumber(28)
+                                .message("Missing error handling")
+                                .suggestion("Add try-except blocks for API calls")
+                                .explanation("Unhandled exceptions can crash the application")
+                                .confidenceScore(0.80)
+                                .impactScore(0.40)
+                                .effortScore(0.50)
+                                .build());
+
+                        repo.setLastAnalyzedCommit("vantage-fake-abc123");
+                        repo.setLastAnalyzedAt(LocalDateTime.now());
+                        repo.setOverallHealthScore(0.78);
+                        repositoryRepository.save(repo);
+                        System.out.println("Seeded fake analysis for Vantage Point");
+                    }
+                });
+
+        // Seed Hybrid Hour if analysis has zero issues or no results
+        repositoryRepository.findByUrl("https://github.com/allanmichaelhender/hybrid_AI_coach")
+                .ifPresent(repo -> {
+                    var analyses = analysisRepository.findByRepositoryId(repo.getId());
+                    boolean shouldSeed = analyses.isEmpty() || 
+                        analyses.get(0).getTotalIssuesFound() == 0 ||
+                        analysisResultRepository.findByAnalysisId(analyses.get(0).getId()).isEmpty();
+                    
+                    if (shouldSeed) {
+                        // Delete existing analysis if it exists
+                        if (!analyses.isEmpty()) {
+                            analysisResultRepository.deleteByAnalysisId(analyses.get(0).getId());
+                            analysisRepository.delete(analyses.get(0));
+                        }
+                        
+                        Analysis analysis = analysisRepository.save(Analysis.builder()
+                                .repository(repo)
+                                .commitHash("hybrid-fake-def456")
+                                .analyzedAt(LocalDateTime.now())
+                                .analysisProvider("openrouter")
+                                .totalFilesAnalyzed(1)
+                                .totalIssuesFound(2)
+                                .criticalCount(0)
+                                .highCount(0)
+                                .mediumCount(1)
+                                .lowCount(1)
+                                .infoCount(0)
+                                .securityCount(0)
+                                .codeQualityCount(1)
+                                .performanceCount(0)
+                                .bestPracticesCount(1)
+                                .maintainabilityCount(0)
+                                .overallHealthScore(0.85)
+                                .securityHealthScore(0.90)
+                                .codeQualityHealthScore(0.80)
+                                .performanceHealthScore(0.85)
+                                .analysisDurationMs(2500L)
+                                .modelVersion("nvidia/nemotron-3-nano-30b-a3b:free")
+                                .build());
+
+                        // Add fake analysis results
+                        analysisResultRepository.save(AnalysisResult.builder()
+                                .analysis(analysis)
+                                .category("CODE_QUALITY")
+                                .type("DUPLICATE_CODE")
+                                .severity("medium")
+                                .filePath("src/components/ChatInterface.tsx")
+                                .lineNumber(35)
+                                .message("Duplicate code detected")
+                                .suggestion("Extract common logic into a shared function")
+                                .explanation("Duplicated code increases maintenance burden")
+                                .confidenceScore(0.75)
+                                .impactScore(0.40)
+                                .effortScore(0.50)
+                                .build());
+
+                        analysisResultRepository.save(AnalysisResult.builder()
+                                .analysis(analysis)
+                                .category("BEST_PRACTICES")
+                                .type("MAGIC_NUMBER")
+                                .severity("low")
+                                .filePath("src/utils/constants.ts")
+                                .lineNumber(12)
+                                .message("Magic number used")
+                                .suggestion("Extract to named constant")
+                                .explanation("Magic numbers reduce code readability")
+                                .confidenceScore(0.70)
+                                .impactScore(0.30)
+                                .effortScore(0.20)
+                                .codeSnippet("const timeout = 5000")
+                                .build());
+
+                        repo.setLastAnalyzedCommit("hybrid-fake-def456");
+                        repo.setLastAnalyzedAt(LocalDateTime.now());
+                        repo.setOverallHealthScore(0.85);
+                        repositoryRepository.save(repo);
+                        System.out.println("Seeded fake analysis for Hybrid Hour");
+                    }
+                });
     }
 
     private void loadFallbackSeedData(CodeRepository repo1, CodeRepository repo2, CodeRepository repo3, CodeRepository repo4) {

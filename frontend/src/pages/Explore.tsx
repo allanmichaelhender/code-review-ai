@@ -50,7 +50,7 @@ export default function Explore() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Pre-Analyzed Repositories</h1>
+      <h1 className="text-3xl font-bold mb-8">Pre-Analysed Repositories</h1>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {repositories.map((repo) => (
           <Card key={repo.id}>

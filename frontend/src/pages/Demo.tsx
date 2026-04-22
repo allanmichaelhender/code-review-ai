@@ -1,13 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import {
-  ArrowLeft,
-  AlertCircle,
-  RefreshCw,
-  AlertTriangle,
-  Info,
-  CheckCircle,
-} from "lucide-react";
+import { ArrowLeft, AlertCircle, AlertTriangle, Info } from "lucide-react";
 
 interface AnalysisResult {
   category: string;
@@ -38,7 +31,7 @@ const severityIcons = {
   high: AlertTriangle,
   medium: AlertTriangle,
   low: Info,
-  info: CheckCircle,
+  info: Info,
 };
 
 export default function Demo() {
@@ -63,22 +56,14 @@ export default function Demo() {
         return;
       }
 
-      // If no existing analysis, trigger a new one
-      const response = await fetch(
-        `/api/analyze?repo=${encodeURIComponent(repoUrl)}&provider=openrouter`,
-        { method: "POST" },
-      );
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Analysis failed");
-      }
-      const data = await response.json();
-      setResults(data.results || []);
+      // No cached analysis available
+      setResults([]);
+      setLoading(false);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to analyze repository. Please try again.",
+          : "Failed to fetch analysis results. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -134,10 +119,8 @@ export default function Demo() {
         {/* Loading State */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-20">
-            <RefreshCw className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-            <p className="text-slate-300 text-lg">Analyzing repository...</p>
-            <p className="text-slate-500 text-sm mt-2">
-              This may take a moment
+            <p className="text-slate-300 text-lg">
+              Loading analysis results...
             </p>
           </div>
         )}
@@ -149,16 +132,9 @@ export default function Demo() {
               <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="text-red-400 font-semibold mb-1">
-                  Analysis Failed
+                  Error Loading Results
                 </h3>
-                <p className="text-slate-300 mb-4">{error}</p>
-                <button
-                  onClick={analyzeRepo}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Retry Analysis
-                </button>
+                <p className="text-slate-300">{error}</p>
               </div>
             </div>
           </div>
@@ -166,13 +142,14 @@ export default function Demo() {
 
         {/* No Results State */}
         {!loading && !error && results.length === 0 && (
-          <div className="bg-green-500/10 border border-green-500/50 rounded-lg p-8 text-center">
-            <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h3 className="text-green-400 font-semibold text-xl mb-2">
-              No Issues Found
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+            <Info className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+            <h3 className="text-slate-400 font-semibold text-xl mb-2">
+              No Analysis Available
             </h3>
-            <p className="text-slate-300">
-              Great job! No issues were detected in this repository.
+            <p className="text-slate-500">
+              This repository hasn't been analysed yet. Analysis is performed
+              via scheduled scripts.
             </p>
           </div>
         )}
@@ -180,19 +157,9 @@ export default function Demo() {
         {/* Results */}
         {!loading && !error && results.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">
-                Found {results.length}{" "}
-                {results.length === 1 ? "issue" : "issues"}
-              </h2>
-              <button
-                onClick={analyzeRepo}
-                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Re-analyze
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-white mb-6">
+              Found {results.length} {results.length === 1 ? "issue" : "issues"}
+            </h2>
 
             <div className="space-y-4">
               {results.map((result: AnalysisResult, index: number) => {

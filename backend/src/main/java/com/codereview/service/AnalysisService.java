@@ -144,7 +144,7 @@ public class AnalysisService {
             int fileCount = 0;
 
             for (Path file : codeFiles) {
-                if (fileCount >= 5) break; // Limit to 5 files for MVP
+                if (fileCount >= 1) break; // Limit to 1 file to stay within 50 daily request limit
 
                 try {
                     String fileContent = Files.readString(file);
@@ -252,7 +252,7 @@ public class AnalysisService {
             ));
             
             for (Path file : codeFiles) {
-                if (fileCount >= 5) break; // Limit to 5 files for MVP
+                if (fileCount >= 1) break; // Limit to 1 file to stay within 50 daily request limit
                 
                 try {
                     String fileContent = Files.readString(file);

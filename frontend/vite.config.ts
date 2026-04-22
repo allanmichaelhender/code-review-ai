@@ -14,7 +14,7 @@ export default defineConfig({
     port: 8000,
     proxy: {
       "/api": {
-        target: "http://172.19.0.5:8080",
+        target: "http://backend:8080",
         changeOrigin: true,
         timeout: 300000, // 5 minutes
         proxyTimeout: 300000,

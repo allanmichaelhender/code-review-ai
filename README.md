@@ -132,14 +132,20 @@ code-review-ai/
   - Performance issues
   - Best practices violations
   - Maintainability concerns
-  - MVP limit: 5 files per repository for faster analysis
+  - MVP limit: 1 file per repository to stay within 50 daily request limit
 
-- **Scheduled Weekly Analysis**: Automatically analyzes all repositories in the database every Sunday at midnight
-  - Manual trigger endpoint: `POST /api/admin/trigger-weekly-analysis`
+- **Scheduled Daily Analysis**: Automatically analyzes a subset of repositories every weekday at midnight
+  - Distributes repositories across 5 weekdays (Monday-Friday) to avoid API rate limits
+  - Each repository assigned to a specific day based on ID modulo 5
+  - Retry logic with exponential backoff for OpenRouter rate limits
+  - DataLoader auto-updates project names and tech stacks on startup
+  - Manual trigger endpoint: `POST /api/admin/trigger-analysis` (analyzes all repositories)
   - Comprehensive logging and error handling
   - Uses OpenRouter NVIDIA Nemotron-3 Nano 30B model
 
-- **Pre-Analyzed Repository Showcase**: View pre-cached analysis results for sample repositories
+- **Pre-Analysed Repository Showcase**: View pre-cached analysis results for sample repositories
+  - Project names displayed (e.g., "Guinea Pig Portfolio" instead of owner/name)
+  - Tech stack badges showing frontend and backend frameworks
 
 - **Real Analysis**: Analyze any public GitHub repository with LLM-powered insights
 
@@ -148,8 +154,9 @@ code-review-ai/
 - Modern, responsive design with TailwindCSS 4
 - shadcn/ui components for consistent styling
 - Health score visualization with color-coded indicators
-- Card-based layout for repository listing
+- Card-based layout for repository listing with project names and tech stacks
 - Dark mode support
+- British English spelling ("analysed" instead of "analyzed")
 
 ## Smart File Filtering
 
@@ -178,9 +185,10 @@ The platform automatically excludes the following files during analysis:
 ### Database Schema
 
 - Using BIGSERIAL for ID columns to match JPA Long type
-- Using Hibernate ddl-auto: update for automatic schema sync
-- Redis caching for analysis results (24-hour TTL)
-- DataLoader component for programmatic seed data
+  - Using Hibernate ddl-auto: update for automatic schema sync
+  - Redis caching for analysis results (24-hour TTL)
+  - DataLoader component auto-updates project names and tech stacks
+  - CodeRepository entity includes projectName and techStack fields
 
 ### Analysis Schema
 
@@ -221,10 +229,29 @@ The platform automatically excludes the following files during analysis:
 - ✅ pgAdmin 4 integration for database management
 - ✅ Fixed repository lookup to use URL instead of owner/name
 - ✅ Frontend configured to use OpenRouter provider by default
-- ✅ Reduced file analysis limit to 5 files for faster MVP testing
+- ✅ Reduced file analysis limit to 1 file to stay within 50 daily request limit
+- ✅ Added projectName and techStack fields to CodeRepository entity
+- ✅ Updated frontend to display project names and tech stack badges
+- ✅ Removed manual analysis option from frontend (analysis via scheduled scripts only)
+- ✅ Merged repository list into Home page, removed Explore route
+- ✅ Renamed "analyzed" to "analysed" throughout UI (British English)
+- ✅ Added retry logic with exponential backoff for OpenRouter rate limits
+- ✅ Disabled React StrictMode to prevent duplicate API calls in development
+- ✅ DataLoader auto-updates project names and tech stacks on startup
 - ✅ Fixed frontend proxy timeout (5 minutes) for long-running analysis
-- ✅ Scheduled weekly analysis job (runs every Sunday at midnight)
-- ✅ Manual trigger endpoint for testing weekly analysis
+- ✅ Scheduled daily analysis job (runs Monday-Friday at midnight)
+- ✅ Repositories distributed across weekdays to avoid API rate limits
+- ✅ Manual trigger endpoint for testing (analyzes all repositories)
+- ✅ Added analysis categories bar to Landing page with 1-line explainers
+- ✅ Reduced spacing on Landing page to fit on one desktop screen
+- ✅ Changed repository card title to plain text with Code button (ExternalLink icon)
+- ✅ Introduced Emerald accent color to site (titles, buttons, hover effects)
+- ✅ Removed accent color hover from analysis category cards to avoid confusion
+- ✅ Fixed vite.config.ts to use Docker service name instead of hardcoded IP
+- ✅ Added fake analysis data seeding for Vantage Point and Hybrid Hour repositories
+- ✅ Added deleteByAnalysisId and findByRepositoryId methods to repositories
+- ✅ Seeding logic replaces analyses with zero issues or empty results with fake data
+- ✅ Fixed Docker networking issues (frontend proxy using hardcoded IP)
 
 ### In Progress
 

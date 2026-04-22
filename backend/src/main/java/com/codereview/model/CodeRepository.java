@@ -23,7 +23,12 @@ public class CodeRepository {
     
     @Column(nullable = false)
     private String name;
-    
+
+    private String projectName;
+
+    @Column(columnDefinition = "TEXT")
+    private String techStack;
+
     @Column(nullable = false, unique = true)
     private String url;
     

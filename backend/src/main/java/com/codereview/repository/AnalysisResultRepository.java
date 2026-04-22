@@ -10,4 +10,5 @@ public interface AnalysisResultRepository extends JpaRepository<AnalysisResult, 
     List<AnalysisResult> findByAnalysisId(Long analysisId);
     List<AnalysisResult> findByAnalysisIdAndType(Long analysisId, String type);
     List<AnalysisResult> findByAnalysisIdAndSeverity(Long analysisId, String severity);
+    void deleteByAnalysisId(Long analysisId);
 }

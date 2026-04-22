@@ -91,7 +91,8 @@ code-review-ai/
 - Using BIGSERIAL for ID columns to match JPA Long type
 - Using Hibernate ddl-auto: update for automatic schema sync
 - Redis caching for analysis results (24-hour TTL)
-- DataLoader component for programmatic seed data
+- DataLoader component auto-updates project names and tech stacks on startup
+- CodeRepository entity includes projectName and techStack fields
 
 ### Analysis Schema
 
@@ -105,7 +106,7 @@ code-review-ai/
 - Aggressive file filtering to exclude non-code files
 - Auto-cleanup of cloned repositories
 - Binary file detection via null bytes and non-printable character analysis
-- Max 5 files analyzed per repository for MVP (faster analysis)
+- Max 1 file analyzed per repository to stay within 50 daily request limit
 
 ### File Filtering
 
@@ -127,16 +128,26 @@ The platform automatically excludes:
 - TailwindCSS 4 with Vite plugin (no PostCSS config needed)
 - Path alias configured: `@` maps to `./src`
 - Development server on port 8000
-- Vite proxy to backend: `http://172.19.0.5:8080` (backend container IP)
+- Vite proxy to backend: `http://backend:8080` (Docker service name, not hardcoded IP)
 - Proxy timeout: 5 minutes for long-running analysis requests
+- React StrictMode disabled to prevent duplicate API calls in development
+- British English spelling ("analysed" instead of "analyzed")
+- Project names and tech stack badges displayed on repository cards
+- Emerald accent color for titles, buttons, and hover effects
+- Repository card titles use emerald-300 by default, emerald-200 on hover
+- Tech stack badges use emerald on hover
+- Repository cards have emerald border on hover
 
 ### Scheduled Analysis
 
-- **Weekly Job**: Automatically analyzes all repositories every Sunday at midnight
-- **Cron Expression**: `0 0 0 ? * SUN`
+- **Daily Job**: Automatically analyzes a subset of repositories every weekday at midnight
+- **Cron Expression**: `0 0 0 ? * MON-FRI`
+- **Distribution**: Repositories distributed across 5 weekdays (Monday-Friday) based on ID % 5
+- **Purpose**: Avoids API rate limits by spreading analysis across days
 - **Service**: `ScheduledAnalysisService` with `@Scheduled` annotation
-- **Manual Trigger**: `POST /api/admin/trigger-weekly-analysis`
+- **Manual Trigger**: `POST /api/admin/trigger-analysis` (analyzes all repositories)
 - **Error Handling**: Comprehensive logging and per-repository error tracking
+- **Retry Logic**: Exponential backoff for OpenRouter rate limits
 - **Model**: Uses OpenRouter NVIDIA Nemotron-3 Nano 30B model
 
 ### Analysis Categories
@@ -291,7 +302,7 @@ npm run dev
 
 ### Admin
 
-- `POST /api/admin/trigger-weekly-analysis` - Manually trigger weekly analysis job
+- `POST /api/admin/trigger-analysis` - Manually trigger analysis (analyzes all repositories)
 
 ## Current Status
 
@@ -313,10 +324,29 @@ npm run dev
 - ✅ Fixed repository lookup to use URL instead of owner/name
 - ✅ Frontend configured to use OpenRouter provider by default
 - ✅ OpenRouter API integration with NVIDIA Nemotron-3 Nano 30B model (free tier)
-- ✅ Reduced file analysis limit to 5 files for faster MVP testing
+- ✅ Reduced file analysis limit to 1 file to stay within 50 daily request limit
+- ✅ Added projectName and techStack fields to CodeRepository entity
+- ✅ Updated frontend to display project names and tech stack badges
+- ✅ Removed manual analysis option from frontend (analysis via scheduled scripts only)
+- ✅ Merged repository list into Home page, removed Explore route
+- ✅ Renamed "analyzed" to "analysed" throughout UI (British English)
+- ✅ Added retry logic with exponential backoff for OpenRouter rate limits
+- ✅ Disabled React StrictMode to prevent duplicate API calls in development
+- ✅ DataLoader auto-updates project names and tech stacks on startup
 - ✅ Fixed frontend proxy timeout (5 minutes) for long-running analysis
-- ✅ Scheduled weekly analysis job (runs every Sunday at midnight)
-- ✅ Manual trigger endpoint for testing weekly analysis
+- ✅ Scheduled daily analysis job (runs Monday-Friday at midnight)
+- ✅ Repositories distributed across weekdays to avoid API rate limits
+- ✅ Manual trigger endpoint for testing (analyzes all repositories)
+- ✅ Added analysis categories bar to Landing page with 1-line explainers
+- ✅ Reduced spacing on Landing page to fit on one desktop screen
+- ✅ Changed repository card title to plain text with Code button (ExternalLink icon)
+- ✅ Introduced Emerald accent color to site (titles, buttons, hover effects)
+- ✅ Removed accent color hover from analysis category cards to avoid confusion
+- ✅ Fixed vite.config.ts to use Docker service name instead of hardcoded IP
+- ✅ Added fake analysis data seeding for Vantage Point and Hybrid Hour repositories
+- ✅ Added deleteByAnalysisId and findByRepositoryId methods to repositories
+- ✅ Seeding logic replaces analyses with zero issues or empty results with fake data
+- ✅ Fixed Docker networking issues (frontend proxy using hardcoded IP)
 
 ### In Progress
 
