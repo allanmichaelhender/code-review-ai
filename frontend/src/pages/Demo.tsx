@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useAnalysisWebSocket } from "../hooks/useAnalysisWebSocket";
 
 interface AnalysisResult {
   type: string;
@@ -14,48 +15,89 @@ export default function Demo() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const repoUrl = searchParams.get("repo") || "";
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<AnalysisResult[]>([]);
-  const [error, setError] = useState("");
+  const [useStreaming, setUseStreaming] = useState(true);
+  const [fallbackResults, setFallbackResults] = useState<AnalysisResult[]>([]);
+  const [fallbackLoading, setFallbackLoading] = useState(false);
+  const [fallbackError, setFallbackError] = useState("");
+
+  const {
+    isConnected,
+    status,
+    progress,
+    results: streamingResults,
+    isComplete,
+    error: streamingError,
+    analysisId,
+    totalIssues,
+    healthScore,
+    connect,
+    disconnect,
+    analyzeRepository: analyzeWithWebSocket,
+    reset: resetStreaming,
+  } = useAnalysisWebSocket();
 
   useEffect(() => {
-    if (repoUrl) {
-      analyzeRepo();
+    if (repoUrl && useStreaming) {
+      connect();
+      return () => {
+        disconnect();
+      };
     }
-  }, [repoUrl]);
+  }, [repoUrl, useStreaming, connect, disconnect]);
 
-  const analyzeRepo = async () => {
-    setLoading(true);
-    setError("");
+  useEffect(() => {
+    if (repoUrl && useStreaming && isConnected) {
+      resetStreaming();
+      analyzeWithWebSocket(repoUrl, "gemini");
+    }
+  }, [
+    repoUrl,
+    useStreaming,
+    isConnected,
+    resetStreaming,
+    analyzeWithWebSocket,
+  ]);
+
+  const analyzeRepoFallback = async () => {
+    setFallbackLoading(true);
+    setFallbackError("");
     try {
-      // First try to get existing analysis
       const existingResponse = await fetch(
         `/api/analysis/by-repo?repo=${encodeURIComponent(repoUrl)}`,
       );
       if (existingResponse.ok) {
         const data = await existingResponse.json();
-        setResults(data.results || []);
+        setFallbackResults(data.results || []);
         return;
       }
 
-      // If no existing analysis, run new analysis
       const response = await fetch(
         `/api/analyze?repo=${encodeURIComponent(repoUrl)}`,
-        {
-          method: "POST",
-        },
+        { method: "POST" },
       );
       if (!response.ok) {
         throw new Error("Analysis failed");
       }
       const data = await response.json();
-      setResults(data.results || []);
+      setFallbackResults(data.results || []);
     } catch (err) {
-      setError("Failed to analyze repository. Please try again.");
+      setFallbackError("Failed to analyze repository. Please try again.");
     } finally {
-      setLoading(false);
+      setFallbackLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (repoUrl && !useStreaming) {
+      analyzeRepoFallback();
+    }
+  }, [repoUrl, useStreaming]);
+
+  const loading = useStreaming
+    ? !isComplete && !streamingError
+    : fallbackLoading;
+  const error = useStreaming ? streamingError : fallbackError;
+  const results = useStreaming ? streamingResults : fallbackResults;
 
   return (
     <div style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>
@@ -74,14 +116,70 @@ export default function Demo() {
         Back to Home
       </button>
 
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ marginRight: "0.5rem" }}>
+          <input
+            type="checkbox"
+            checked={useStreaming}
+            onChange={(e) => {
+              setUseStreaming(e.target.checked);
+              if (e.target.checked) {
+                setFallbackResults([]);
+              } else {
+                resetStreaming();
+              }
+            }}
+            style={{ marginRight: "0.25rem" }}
+          />
+          Enable real-time streaming
+        </label>
+      </div>
+
       <h1>Analysis Results</h1>
       <p style={{ marginBottom: "1rem" }}>Repository: {repoUrl}</p>
+
+      {useStreaming && status && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "4px",
+          }}
+        >
+          <p style={{ marginBottom: "0.5rem", fontWeight: "bold" }}>
+            Status: {status}
+          </p>
+          {progress.total > 0 && (
+            <p>
+              Progress: {progress.current} / {progress.total} files
+            </p>
+          )}
+        </div>
+      )}
 
       {loading && <p>Analyzing repository...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {!loading && !error && results.length === 0 && (
         <p>No issues found in this repository.</p>
+      )}
+
+      {useStreaming && isComplete && healthScore > 0 && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem",
+            backgroundColor: "#e8f5e9",
+            borderRadius: "4px",
+          }}
+        >
+          <p>
+            <strong>Analysis Complete!</strong>
+          </p>
+          <p>Total Issues: {totalIssues}</p>
+          <p>Health Score: {(healthScore * 100).toFixed(0)}%</p>
+        </div>
       )}
 
       {!loading && results.length > 0 && (
@@ -108,7 +206,7 @@ export default function Demo() {
               </tr>
             </thead>
             <tbody>
-              {results.map((result, index) => (
+              {results.map((result: AnalysisResult, index: number) => (
                 <tr key={index} style={{ borderBottom: "1px solid #ddd" }}>
                   <td style={{ padding: "0.5rem" }}>{result.severity}</td>
                   <td style={{ padding: "0.5rem" }}>{result.type}</td>

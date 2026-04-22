@@ -9,11 +9,16 @@ import com.codereview.repository.CodeRepositoryRepository;
 import com.codereview.service.llm.LLMService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,18 +30,21 @@ public class AnalysisService {
     private final AnalysisResultRepository analysisResultRepository;
     private final LLMService llmService;
     private final ObjectMapper objectMapper;
+    private final GitService gitService;
     
     public AnalysisService(
             CodeRepositoryRepository repositoryRepository,
             AnalysisRepository analysisRepository,
             AnalysisResultRepository analysisResultRepository,
             LLMService llmService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            GitService gitService) {
         this.repositoryRepository = repositoryRepository;
         this.analysisRepository = analysisRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.llmService = llmService;
         this.objectMapper = objectMapper;
+        this.gitService = gitService;
     }
     
     @Transactional
@@ -61,74 +69,242 @@ public class AnalysisService {
                                 .build()
                 ));
         
-        // For MVP, we'll do a simplified analysis
-        // In production, this would use JGit to clone and analyze files
-        Analysis analysis = performAnalysis(repository, provider);
+        // Clone repository and analyze files
+        Analysis analysis = performAnalysis(repository, repoUrl, provider);
         
         return analysis;
     }
-    
-    private Analysis performAnalysis(CodeRepository repository, String provider) {
-        // For MVP, we'll analyze a sample code snippet
-        // In production, this would analyze actual files from the repository
-        String sampleCode = """
-                // Sample code for analysis
-                function processUserData(data) {
-                    const apiKey = "sk-1234567890abcdef"; // Hardcoded secret
-                    let result = [];
-                    for (let i = 0; i < data.length; i++) {
-                        result.push(data[i]);
-                    }
-                    return result;
-                }
-                """;
-        
-        // Perform security analysis
-        String securityResponse = llmService.analyzeCodeWithGemini(sampleCode, "TypeScript", "security");
-        List<AnalysisResult> securityResults = parseAnalysisResults(securityResponse, "security");
-        
-        // Perform code quality analysis
-        String qualityResponse = llmService.analyzeCodeWithGemini(sampleCode, "TypeScript", "quality");
-        List<AnalysisResult> qualityResults = parseAnalysisResults(qualityResponse, "quality");
-        
-        // Combine results
-        List<AnalysisResult> allResults = new ArrayList<>();
-        allResults.addAll(securityResults);
-        allResults.addAll(qualityResults);
-        
-        // Create analysis record
-        Analysis analysis = Analysis.builder()
-                .repository(repository)
-                .commitHash("sample-commit-hash")
-                .analysisProvider(provider)
-                .totalFilesAnalyzed(1)
-                .totalIssuesFound(allResults.size())
-                .criticalCount((int) allResults.stream().filter(r -> "critical".equals(r.getSeverity())).count())
-                .highCount((int) allResults.stream().filter(r -> "high".equals(r.getSeverity())).count())
-                .mediumCount((int) allResults.stream().filter(r -> "medium".equals(r.getSeverity())).count())
-                .lowCount((int) allResults.stream().filter(r -> "low".equals(r.getSeverity())).count())
-                .infoCount((int) allResults.stream().filter(r -> "info".equals(r.getSeverity())).count())
-                .build();
-        
-        analysis = analysisRepository.save(analysis);
-        
-        // Save analysis results
-        for (AnalysisResult result : allResults) {
-            result.setAnalysis(analysis);
-            result.setFilePath("sample.ts"); // Simplified for MVP
-            analysisResultRepository.save(result);
+
+    @Transactional
+    public Analysis analyzeRepositoryStreaming(String repoUrl, String provider, String sessionId, SimpMessagingTemplate messagingTemplate) {
+        // Parse GitHub URL
+        String[] parts = parseGitHubUrl(repoUrl);
+        if (parts == null) {
+            throw new IllegalArgumentException("Invalid GitHub repository URL");
         }
         
-        // Update repository health score
-        double healthScore = calculateHealthScore(allResults);
-        repository.setOverallHealthScore(healthScore);
-        repository.setLastAnalyzedAt(analysis.getAnalyzedAt());
-        repositoryRepository.save(repository);
+        String owner = parts[0];
+        String name = parts[1];
+        
+        // Send initial status
+        messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+            "type", "status",
+            "message", "Cloning repository..."
+        ));
+        
+        // Get or create repository
+        CodeRepository repository = repositoryRepository.findByOwnerAndName(owner, name)
+                .orElseGet(() -> repositoryRepository.save(
+                        CodeRepository.builder()
+                                .owner(owner)
+                                .name(name)
+                                .url(repoUrl)
+                                .language("TypeScript/Python")
+                                .build()
+                ));
+        
+        // Clone repository and analyze files with streaming
+        Analysis analysis = performAnalysisStreaming(repository, repoUrl, provider, sessionId, messagingTemplate);
         
         return analysis;
     }
     
-    private List<AnalysisResult> parseAnalysisResults(String response, String type) {
+    private Analysis performAnalysis(CodeRepository repository, String repoUrl, String provider) {
+        try {
+            // Clone repository and get code files
+            String tempDir = "/tmp/repo-" + System.currentTimeMillis();
+            List<Path> codeFiles = gitService.cloneRepository(repoUrl, tempDir);
+            
+            // Get latest commit hash
+            String commitHash = gitService.getLatestCommitHash(repoUrl, tempDir + "-hash");
+            
+            // Analyze files
+            List<AnalysisResult> allResults = new ArrayList<>();
+            int fileCount = 0;
+            
+            for (Path file : codeFiles) {
+                if (fileCount >= 50) break; // Limit to 50 files for MVP
+                
+                try {
+                    String fileContent = Files.readString(file);
+                    String fileName = file.getFileName().toString();
+                    String language = detectLanguage(fileName);
+                    
+                    // Perform security analysis
+                    String securityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "security");
+                    List<AnalysisResult> securityResults = parseAnalysisResults(securityResponse, "security", fileName);
+                    
+                    // Perform code quality analysis
+                    String qualityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "quality");
+                    List<AnalysisResult> qualityResults = parseAnalysisResults(qualityResponse, "quality", fileName);
+                    
+                    allResults.addAll(securityResults);
+                    allResults.addAll(qualityResults);
+                    fileCount++;
+                } catch (IOException e) {
+                    // Skip files that can't be read
+                    continue;
+                }
+            }
+            
+            // Create analysis record
+            Analysis analysis = Analysis.builder()
+                    .repository(repository)
+                    .commitHash(commitHash)
+                    .analysisProvider(provider)
+                    .totalFilesAnalyzed(fileCount)
+                    .totalIssuesFound(allResults.size())
+                    .criticalCount((int) allResults.stream().filter(r -> "critical".equals(r.getSeverity())).count())
+                    .highCount((int) allResults.stream().filter(r -> "high".equals(r.getSeverity())).count())
+                    .mediumCount((int) allResults.stream().filter(r -> "medium".equals(r.getSeverity())).count())
+                    .lowCount((int) allResults.stream().filter(r -> "low".equals(r.getSeverity())).count())
+                    .infoCount((int) allResults.stream().filter(r -> "info".equals(r.getSeverity())).count())
+                    .build();
+            
+            analysis = analysisRepository.save(analysis);
+            
+            // Save analysis results
+            for (AnalysisResult result : allResults) {
+                result.setAnalysis(analysis);
+                analysisResultRepository.save(result);
+            }
+            
+            // Update repository health score
+            double healthScore = calculateHealthScore(allResults);
+            repository.setOverallHealthScore(healthScore);
+            repository.setLastAnalyzedAt(analysis.getAnalyzedAt());
+            repository.setLastAnalyzedCommit(commitHash);
+            repositoryRepository.save(repository);
+            
+            return analysis;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to analyze repository: " + e.getMessage(), e);
+        }
+    }
+
+    private Analysis performAnalysisStreaming(CodeRepository repository, String repoUrl, String provider, String sessionId, SimpMessagingTemplate messagingTemplate) {
+        try {
+            // Clone repository and get code files
+            String tempDir = "/tmp/repo-" + System.currentTimeMillis();
+            messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                "type", "status",
+                "message", "Cloning repository and collecting files..."
+            ));
+            
+            List<Path> codeFiles = gitService.cloneRepository(repoUrl, tempDir);
+            
+            // Get latest commit hash
+            String commitHash = gitService.getLatestCommitHash(repoUrl, tempDir + "-hash");
+            
+            // Analyze files with streaming
+            List<AnalysisResult> allResults = new ArrayList<>();
+            int fileCount = 0;
+            int totalFiles = Math.min(codeFiles.size(), 50);
+            
+            messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                "type", "progress",
+                "message", "Starting analysis...",
+                "current", 0,
+                "total", totalFiles
+            ));
+            
+            for (Path file : codeFiles) {
+                if (fileCount >= 50) break; // Limit to 50 files for MVP
+                
+                try {
+                    String fileContent = Files.readString(file);
+                    String fileName = file.getFileName().toString();
+                    String language = detectLanguage(fileName);
+                    
+                    // Send progress update
+                    messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                        "type", "progress",
+                        "message", "Analyzing: " + fileName,
+                        "current", fileCount + 1,
+                        "total", totalFiles
+                    ));
+                    
+                    // Perform security analysis
+                    String securityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "security");
+                    List<AnalysisResult> securityResults = parseAnalysisResults(securityResponse, "security", fileName);
+                    
+                    // Stream security results
+                    for (AnalysisResult result : securityResults) {
+                        messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                            "type", "result",
+                            "result", result
+                        ));
+                    }
+                    
+                    // Perform code quality analysis
+                    String qualityResponse = llmService.analyzeCodeWithGemini(fileContent, language, "quality");
+                    List<AnalysisResult> qualityResults = parseAnalysisResults(qualityResponse, "quality", fileName);
+                    
+                    // Stream quality results
+                    for (AnalysisResult result : qualityResults) {
+                        messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                            "type", "result",
+                            "result", result
+                        ));
+                    }
+                    
+                    allResults.addAll(securityResults);
+                    allResults.addAll(qualityResults);
+                    fileCount++;
+                } catch (IOException e) {
+                    // Skip files that can't be read
+                    continue;
+                }
+            }
+            
+            // Create analysis record
+            Analysis analysis = Analysis.builder()
+                    .repository(repository)
+                    .commitHash(commitHash)
+                    .analysisProvider(provider)
+                    .totalFilesAnalyzed(fileCount)
+                    .totalIssuesFound(allResults.size())
+                    .criticalCount((int) allResults.stream().filter(r -> "critical".equals(r.getSeverity())).count())
+                    .highCount((int) allResults.stream().filter(r -> "high".equals(r.getSeverity())).count())
+                    .mediumCount((int) allResults.stream().filter(r -> "medium".equals(r.getSeverity())).count())
+                    .lowCount((int) allResults.stream().filter(r -> "low".equals(r.getSeverity())).count())
+                    .infoCount((int) allResults.stream().filter(r -> "info".equals(r.getSeverity())).count())
+                    .build();
+            
+            analysis = analysisRepository.save(analysis);
+            
+            // Save analysis results
+            for (AnalysisResult result : allResults) {
+                result.setAnalysis(analysis);
+                analysisResultRepository.save(result);
+            }
+            
+            // Update repository health score
+            double healthScore = calculateHealthScore(allResults);
+            repository.setOverallHealthScore(healthScore);
+            repository.setLastAnalyzedAt(analysis.getAnalyzedAt());
+            repository.setLastAnalyzedCommit(commitHash);
+            repositoryRepository.save(repository);
+            
+            // Send completion message
+            messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                "type", "complete",
+                "analysisId", analysis.getId(),
+                "totalIssues", analysis.getTotalIssuesFound(),
+                "healthScore", healthScore
+            ));
+            
+            return analysis;
+        } catch (Exception e) {
+            messagingTemplate.convertAndSend("/topic/analysis/" + sessionId, Map.of(
+                "type", "error",
+                "message", "Failed to analyze repository: " + e.getMessage()
+            ));
+            throw new RuntimeException("Failed to analyze repository: " + e.getMessage(), e);
+        }
+    }
+    
+    private List<AnalysisResult> parseAnalysisResults(String response, String type, String fileName) {
         List<AnalysisResult> results = new ArrayList<>();
         
         try {
@@ -141,6 +317,7 @@ public class AnalysisService {
                             .severity(node.has("severity") ? node.get("severity").asText() : "info")
                             .message(node.has("message") ? node.get("message").asText() : "No message")
                             .suggestion(node.has("suggestion") ? node.get("suggestion").asText() : null)
+                            .filePath(fileName)
                             .lineNumber(node.has("lineNumber") ? node.get("lineNumber").asInt() : null)
                             .build();
                     results.add(result);
@@ -151,7 +328,8 @@ public class AnalysisService {
             results.add(AnalysisResult.builder()
                     .type(type)
                     .severity("info")
-                    .message("Analysis completed. Raw response: " + response.substring(0, Math.min(200, response.length())))
+                    .message("Analysis completed for " + fileName)
+                    .filePath(fileName)
                     .build());
         }
         
@@ -161,17 +339,17 @@ public class AnalysisService {
                 results.add(AnalysisResult.builder()
                         .type("security")
                         .severity("high")
-                        .message("Hardcoded API key detected")
-                        .suggestion("Use environment variables or a secrets manager")
-                        .lineNumber(2)
+                        .message("Potential security issue detected")
+                        .suggestion("Review code for security vulnerabilities")
+                        .filePath(fileName)
                         .build());
             } else {
                 results.add(AnalysisResult.builder()
                         .type("quality")
                         .severity("medium")
-                        .message("Function could be simplified")
-                        .suggestion("Consider using array methods like map()")
-                        .lineNumber(3)
+                        .message("Code quality improvement possible")
+                        .suggestion("Consider refactoring for better readability")
+                        .filePath(fileName)
                         .build());
             }
         }
@@ -225,5 +403,25 @@ public class AnalysisService {
         String name = parts[1];
         return repositoryRepository.findByOwnerAndName(owner, name)
                 .flatMap(repo -> analysisRepository.findTopByRepositoryOrderByAnalyzedAtDesc(repo));
+    }
+
+    private String detectLanguage(String fileName) {
+        String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return switch (extension) {
+            case "java" -> "Java";
+            case "ts", "tsx" -> "TypeScript";
+            case "js", "jsx" -> "JavaScript";
+            case "py" -> "Python";
+            case "go" -> "Go";
+            case "rs" -> "Rust";
+            case "c", "cpp", "cc", "h", "hpp" -> "C/C++";
+            case "cs" -> "C#";
+            case "php" -> "PHP";
+            case "rb" -> "Ruby";
+            case "swift" -> "Swift";
+            case "kt", "kts" -> "Kotlin";
+            case "scala" -> "Scala";
+            default -> "TypeScript"; // Default for MVP
+        };
     }
 }
