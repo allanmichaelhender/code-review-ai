@@ -102,7 +102,7 @@ export default function Landing() {
   return (
     <div className="h-screen bg-slate-900 relative overflow-hidden">
       {/* Main content */}
-      <div className="relative z-10 h-screen flex items-center justify-center px-2 py-4 gap-4 max-w-[95vw]">
+      <div className="relative z-10 h-screen flex flex-col md:flex-row items-center justify-center px-2 py-4 gap-12 max-w-[95vw]">
         {/* Left column - 5/7ths */}
         <div className="flex-[5/7] flex flex-col">
           {/* Title and Description */}
@@ -111,7 +111,7 @@ export default function Landing() {
               <h1 className="text-4xl md:text-5xl font-bold mb-2 text-white">
                 REPO REVIEWER
               </h1>
-              <p className="text-sm text-slate-300 mb-4 line-clamp-2">
+              <p className="text-sm text-slate-300 mb-4">
                 Analyse your GitHub files/repositories to identify security
                 vulnerabilities, code quality issues, and best practices
                 violations in seconds.
@@ -121,7 +121,7 @@ export default function Landing() {
 
           {/* Input Section */}
           <div className="flex-1 flex flex-col">
-            <div className="flex gap-3 mb-4">
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
               {/* Input box with button inside */}
               <div className="flex-1 relative">
                 {inputMode === "repo" && (
@@ -183,7 +183,7 @@ export default function Landing() {
                       : "text-slate-300 hover:text-white"
                   }`}
                 >
-                  Repo
+                  Repo - Not available in demo
                 </button>
               </div>
             </div>
@@ -298,8 +298,8 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Right column - 2/7ths - Demo Repositories */}
-        <div className="flex-[2/7] flex flex-col">
+        {/* Right column - Demo Repositories */}
+        <div className="flex-[1/3] flex flex-col">
           <h2 className="text-xl font-bold text-white mb-4">
             Demo Repositories
           </h2>
@@ -308,7 +308,7 @@ export default function Landing() {
               Loading repositories...
             </div>
           ) : (
-            <div className="space-y-4 overflow-y-auto flex-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4 overflow-y-auto flex-1">
               {repositories.map((repo) => (
                 <div
                   key={repo.id}
