@@ -4,7 +4,7 @@ WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN npm run build
+RUN npx vite build
 
 # Final nginx image with frontend assets
 FROM nginx:alpine
