@@ -18,7 +18,7 @@ public class GeminiProvider implements LLMProvider {
     public GeminiProvider(@Value("${gemini.api-key}") String apiKey) {
         this.apiKey = apiKey;
         this.webClient = WebClient.builder()
-                .baseUrl("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent")
+                .baseUrl("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent")
                 .build();
     }
     
@@ -106,11 +106,10 @@ public class GeminiProvider implements LLMProvider {
     
     private String extractContent(String response) {
         // Parse Gemini API response to extract the generated content
-        // This is a simplified implementation
         if (response == null || response.isEmpty()) {
             return "No response from Gemini API";
         }
-        
+
         try {
             // Extract the text from the Gemini response
             int textStart = response.indexOf("\"text\": \"");
@@ -118,16 +117,43 @@ public class GeminiProvider implements LLMProvider {
                 return response;
             }
             textStart += 9; // Length of "\"text\": \""
-            
-            int textEnd = response.indexOf("\"", textStart);
-            if (textEnd == -1) {
+
+            // Find the matching closing quote, accounting for escaped quotes
+            int textEnd = textStart;
+            boolean escaped = false;
+            while (textEnd < response.length()) {
+                char c = response.charAt(textEnd);
+                if (c == '\\' && !escaped) {
+                    escaped = true;
+                } else if (c == '"' && !escaped) {
+                    break;
+                } else {
+                    escaped = false;
+                }
+                textEnd++;
+            }
+
+            if (textEnd >= response.length()) {
                 return response.substring(textStart);
             }
-            
-            return response.substring(textStart, textEnd)
+
+            String content = response.substring(textStart, textEnd)
                     .replace("\\n", "\n")
                     .replace("\\\"", "\"")
                     .replace("\\\\", "\\");
+
+            // Strip markdown code blocks if present
+            if (content.startsWith("```json")) {
+                content = content.substring(7);
+            } else if (content.startsWith("```")) {
+                content = content.substring(3);
+            }
+            if (content.endsWith("```")) {
+                content = content.substring(0, content.length() - 3);
+            }
+            content = content.trim();
+
+            return content;
         } catch (Exception e) {
             return response;
         }

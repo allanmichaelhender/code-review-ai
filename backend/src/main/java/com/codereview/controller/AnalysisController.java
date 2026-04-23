@@ -88,4 +88,27 @@ public class AnalysisController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
+    @PostMapping("/analyse-file")
+    public ResponseEntity<?> analyseFile(@RequestBody Map<String, String> request) {
+        System.out.println("=== POST /api/analyse-file ===");
+        System.out.println("Request body: " + request);
+        try {
+            String fileUrl = request.get("fileUrl");
+            String provider = request.getOrDefault("provider", "gemini");
+
+            if (fileUrl == null || fileUrl.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File URL is required"));
+            }
+
+            String response = analysisService.analyzeGitHubFile(fileUrl, provider);
+            System.out.println("Response length: " + response.length());
+            System.out.println("Response (first 500 chars): " + response.substring(0, Math.min(500, response.length())));
+            return ResponseEntity.ok(Map.of("result", response));
+        } catch (Exception e) {
+            System.out.println("Error in /api/analyse-file: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

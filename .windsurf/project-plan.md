@@ -115,11 +115,14 @@
    - Performance monitoring
    - Log aggregation
 
-3. **Deployment**
+3. **Deployment** ✅
    - Production Docker configuration
    - CI/CD pipeline
    - Environment-specific configs
    - Health checks
+   - GCP deployment workflow with HTTP/HTTPS
+   - Certbot integration for Let's Encrypt SSL
+   - Security hardening (port exposure, profiles)
 
 4. **Export Functionality**
    - PDF report generation

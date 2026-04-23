@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: codereview
       POSTGRES_USER: codereview
       POSTGRES_PASSWORD: codereview
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -16,8 +14,6 @@ services:
   redis:
     image: redis:7-alpine
     container_name: codereview-redis
-    ports:
-      - "6379:6379"
     networks:
       - codereview-network
 
@@ -34,6 +30,8 @@ services:
       - postgres
     networks:
       - codereview-network
+    profiles:
+      - dev
 
   backend:
     build:
@@ -50,8 +48,6 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       OPEN_ROUTER_API_KEY: ${OPEN_ROUTER_API_KEY}
       GITHUB_API_TOKEN: ${GITHUB_API_TOKEN}
-    ports:
-      - "8080:8080"
     depends_on:
       - postgres
       - redis
@@ -63,8 +59,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: codereview-frontend
-    ports:
-      - "3000:80"
+    profiles:
+      - dev
     depends_on:
       - backend
     networks:
@@ -77,14 +73,30 @@ services:
     container_name: codereview-nginx
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
     depends_on:
       - backend
-      - frontend
     networks:
       - codereview-network
 
+  certbot:
+    image: certbot/certbot
+    container_name: codereview-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    networks:
+      - codereview-network
+    profiles:
+      - certbot
+
 volumes:
   postgres-data:
+  certbot-conf:
+  certbot-www:
 
 networks:
   codereview-network:

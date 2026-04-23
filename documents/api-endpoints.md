@@ -3,10 +3,12 @@
 ## Repositories
 
 ### GET /api/repositories
+
 - **Description**: List all repositories in the database
 - **Method**: GET
 - **Response**: Array of repository objects
 - **Response Body**:
+
 ```json
 [
   {
@@ -29,9 +31,11 @@
 ```
 
 ### POST /api/repositories
+
 - **Description**: Create a new repository entry
 - **Method**: POST
 - **Request Body**:
+
 ```json
 {
   "owner": "owner",
@@ -42,11 +46,13 @@
   "stars": 100
 }
 ```
+
 - **Response**: Created repository object
 
 ## Analysis
 
 ### POST /api/analyze
+
 - **Description**: Trigger analysis for a repository
 - **Method**: POST
 - **Query Parameters**:
@@ -55,6 +61,7 @@
 - **Example**: `POST /api/analyze?repo=https://github.com/owner/repo&provider=openrouter`
 - **Response**: Analysis object with results
 - **Response Body**:
+
 ```json
 {
   "id": 30,
@@ -84,7 +91,32 @@
 }
 ```
 
+### POST /api/analyze-file
+
+- **Description**: Analyze a single GitHub file using Gemini
+- **Method**: POST
+- **Request Body**:
+
+```json
+{
+  "fileUrl": "https://github.com/owner/repo/blob/main/file.ts",
+  "provider": "gemini"
+}
+```
+
+- **Response**: Analysis result as text
+- **Response Body**:
+
+```json
+{
+  "result": "Analysis result text..."
+}
+```
+
+- **Note**: Fetches file content from GitHub API, auto-detects language from file extension
+
 ### GET /api/analysis/by-repo
+
 - **Description**: Get latest analysis for a repository by URL
 - **Method**: GET
 - **Query Parameters**:
@@ -93,6 +125,7 @@
 - **Response**: Analysis object with results (or 404 if not found)
 
 ### GET /api/analysis/{id}
+
 - **Description**: Get analysis by ID
 - **Method**: GET
 - **Path Parameters**:
@@ -100,12 +133,14 @@
 - **Response**: Analysis object with results
 
 ### GET /api/analysis/{id}/results
+
 - **Description**: Get analysis results by analysis ID
 - **Method**: GET
 - **Path Parameters**:
   - `id`: Analysis ID
 - **Response**: Array of AnalysisResult objects
 - **Response Body**:
+
 ```json
 [
   {
@@ -119,9 +154,9 @@
     "message": "Insecure random number generation",
     "suggestion": "Use secrets module for cryptographic operations",
     "explanation": "Random module is not cryptographically secure",
-    "confidenceScore": 0.90,
+    "confidenceScore": 0.9,
     "impactScore": 0.85,
-    "effortScore": 0.30,
+    "effortScore": 0.3,
     "cweId": "CWE-338",
     "owaspCategory": "A02: Cryptographic Failures",
     "codeSnippet": "import random; random.seed(42)"
@@ -132,6 +167,7 @@
 ## Admin
 
 ### POST /api/admin/trigger-analysis
+
 - **Description**: Manually trigger analysis for all repositories (for testing)
 - **Method**: POST
 - **Response**: Summary of analysis results

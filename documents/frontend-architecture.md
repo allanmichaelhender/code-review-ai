@@ -21,17 +21,25 @@ src/
 ## Page Descriptions
 
 **Landing.tsx:**
-- Hero section with title and description
-- Input field for repository URL
-- "Analyze" button
-- Repository list with cards showing:
-  - Project name (custom, not owner/name)
-  - Tech stack badges
-  - Health score visualization
-  - "Code" button (ExternalLink icon) to repository URL
-- Analysis categories bar with 1-line explainers
+
+- Single-screen layout (no scrolling on desktop)
+- Animated gradient background (purple to indigo to slate)
+- Pulsing radial gradient overlays
+- Gradient animated title ("\*Repo Reviewer" with emerald-cyan-purple gradient)
+- Glassmorphism effects with backdrop blur
+- Mode toggle slider (Single File / Repository - Not available in demo)
+- Single File mode:
+  - GitHub file URL input
+  - "Analyse" button with Gemini provider
+  - Analysis result display
+- Repository mode (disabled in demo):
+  - Repository URL input
+  - Disabled "Not available in demo" button
+- Analysis categories badges with gradient text
+- Removed: Repository list and categories section
 
 **Demo.tsx:**
+
 - Displays analysis results for a specific repository
 - Shows loading state during analysis
 - Displays issues grouped by category
@@ -41,6 +49,7 @@ src/
 ## Styling System
 
 **Accent Color:** Emerald
+
 - Primary buttons: emerald-600 → emerald-700 (hover)
 - Input focus ring: emerald-500
 - Repository titles: emerald-300 → emerald-200 (hover)
@@ -48,6 +57,7 @@ src/
 - Repository cards: border-emerald-500 (hover)
 
 **Analysis Category Colors:**
+
 - Security: red-500
 - Code Quality: yellow-500
 - Performance: green-500
@@ -65,8 +75,9 @@ src/
 ```
 
 Navigation to Demo:
+
 ```typescript
-navigate(`/demo?repo=${encodeURIComponent(repoUrl)}`)
+navigate(`/demo?repo=${encodeURIComponent(repoUrl)}`);
 ```
 
 ## API Integration
@@ -74,18 +85,21 @@ navigate(`/demo?repo=${encodeURIComponent(repoUrl)}`)
 **Base URL:** `/api` (proxied to backend)
 
 **Example calls:**
+
 ```typescript
 // Fetch repositories
-fetch("/api/repositories").then(res => res.json())
+fetch("/api/repositories").then((res) => res.json());
 
 // Fetch analysis
-fetch(`/api/analysis/by-repo?repo=${encodeURIComponent(repoUrl)}`)
-  .then(res => res.json())
+fetch(`/api/analysis/by-repo?repo=${encodeURIComponent(repoUrl)}`).then((res) =>
+  res.json(),
+);
 ```
 
 ## Proxy Configuration
 
 **vite.config.ts:**
+
 ```typescript
 proxy: {
   "/api": {

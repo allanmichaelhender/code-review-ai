@@ -499,6 +499,62 @@ public class AnalysisService {
                 .flatMap(repo -> analysisRepository.findTopByRepositoryOrderByAnalyzedAtDesc(repo));
     }
 
+    public String analyzeSingleFile(String code, String language, String provider) {
+        return llmService.analyzeCode(code, language, "comprehensive", provider);
+    }
+
+    public String analyzeGitHubFile(String fileUrl, String provider) {
+        try {
+            // Parse GitHub file URL to extract owner, repo, and file path
+            // Format: https://github.com/owner/repo/blob/branch/path/to/file.ext
+            String[] parts = fileUrl.split("github\\.com/");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("Invalid GitHub file URL");
+            }
+
+            String[] repoParts = parts[1].split("/");
+            if (repoParts.length < 4) {
+                throw new IllegalArgumentException("Invalid GitHub file URL format");
+            }
+
+            String owner = repoParts[0];
+            String repo = repoParts[1];
+            String branch = repoParts[3]; // "blob" is at index 2
+            String filePath = String.join("/", java.util.Arrays.copyOfRange(repoParts, 4, repoParts.length));
+
+            // Fetch file content from GitHub API
+            String apiUrl = "https://api.github.com/repos/" + owner + "/" + repo + "/contents/" + filePath + "?ref=" + branch;
+            
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(apiUrl))
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("Failed to fetch file from GitHub: " + response.statusCode());
+            }
+
+            // Parse GitHub API response to get file content
+            JsonNode responseJson = objectMapper.readTree(response.body());
+            String content = responseJson.get("content").asText();
+            
+            // Decode base64 content (remove newlines first)
+            String decodedContent = new String(java.util.Base64.getDecoder().decode(content.replace("\n", "")));
+
+            // Detect language from file extension
+            String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
+            String language = detectLanguage(fileName);
+
+            // Analyze the code
+            return llmService.analyzeCode(decodedContent, language, "comprehensive", provider);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to analyze GitHub file: " + e.getMessage(), e);
+        }
+    }
+
     private String detectLanguage(String fileName) {
         String extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
         return switch (extension) {

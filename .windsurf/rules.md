@@ -1,8 +1,8 @@
-# AI Code Review Platform - Project Context
+# \*Repo Reviewer - Project Context
 
 ## Project Overview
 
-AI-powered code review platform built with Spring Boot (Java 21) and React (TypeScript) that analyzes GitHub repositories using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
+AI-powered code review platform built with Spring Boot (Java 21) and React (TypeScript) that analyzes GitHub repositories and individual files using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
 
 ### Tech Stack
 
@@ -17,6 +17,7 @@ AI-powered code review platform built with Spring Boot (Java 21) and React (Type
 - Lombok for code generation
 - Maven for dependency management
 - Hibernate ddl-auto: update for automatic schema sync
+- Google Gemini API (gemini-3.1-flash-lite-preview)
 - OpenRouter API with NVIDIA Nemotron-3 Nano 30B model (free tier)
 - Spring Scheduling for automated weekly analysis
 
@@ -27,6 +28,7 @@ AI-powered code review platform built with Spring Boot (Java 21) and React (Type
 - **UI Library**: TailwindCSS 4 + shadcn/ui components
 - **Routing**: React Router 6
 - **Icons**: Lucide React
+- **Styling**: Animated gradient backgrounds, glassmorphism effects
 
 ### Infrastructure
 
@@ -44,7 +46,7 @@ code-review-ai/
 │   │   ├── model/           # JPA entities (CodeRepository, Analysis, AnalysisResult)
 │   │   ├── repository/      # Spring Data JPA repositories
 │   │   ├── service/         # Business logic (AnalysisService, GitService, LLMService)
-│   │   │   └── llm/        # LLM provider implementations (Gemini, DeepSeek)
+│   │   │   └── llm/        # LLM provider implementations (Gemini, DeepSeek, OpenRouter)
 │   │   ├── controller/      # REST controllers
 │   │   ├── config/         # Spring configuration (DataLoader, SecurityConfig)
 │   │   └── CodeReviewApplication.java
@@ -131,6 +133,9 @@ The platform automatically excludes:
 - Vite proxy to backend: `http://backend:8080` (Docker service name, not hardcoded IP)
 - Proxy timeout: 5 minutes for long-running analysis requests
 - React StrictMode disabled to prevent duplicate API calls in development
+- Animated gradient title with emerald-cyan-purple gradient
+- Glassmorphism effects with backdrop blur
+- Single-screen landing page (no scrolling on desktop)
 - British English spelling ("analysed" instead of "analyzed")
 - Project names and tech stack badges displayed on repository cards
 - Emerald accent color for titles, buttons, and hover effects
@@ -295,7 +300,8 @@ npm run dev
 
 ### Analysis
 
-- `POST /api/analyze?repo=<url>` - Analyze a repository
+- `POST /api/analyze?repo=<url>` - Analyze a repository (OpenRouter)
+- `POST /api/analyze-file` - Analyze a single GitHub file (Gemini)
 - `GET /api/analysis/{id}` - Get analysis by ID
 - `GET /api/analysis/{id}/results` - Get analysis results
 - `GET /api/analysis/by-repo?repo=<url>` - Get latest analysis by repository URL
@@ -347,6 +353,14 @@ npm run dev
 - ✅ Added deleteByAnalysisId and findByRepositoryId methods to repositories
 - ✅ Seeding logic replaces analyses with zero issues or empty results with fake data
 - ✅ Fixed Docker networking issues (frontend proxy using hardcoded IP)
+- ✅ Updated Gemini model to gemini-3.1-flash-lite-preview
+- ✅ Added single file analysis endpoint (POST /api/analyze-file)
+- ✅ Added GitHub file URL input to landing page
+- ✅ Redesigned landing page with animated gradient background and glassmorphism
+- ✅ Changed app name to "\*Repo Reviewer"
+- ✅ Made landing page fit on one screen without scrolling (desktop)
+- ✅ Disabled repository analysis in demo mode
+- ✅ Removed repository list and categories from landing page
 
 ### In Progress
 

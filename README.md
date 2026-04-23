@@ -1,6 +1,6 @@
-# AI Code Review Platform
+# \*Repo Reviewer
 
-An AI-powered code review platform built with Spring Boot and React TypeScript that analyzes GitHub repositories using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
+An AI-powered code review platform built with Spring Boot and React TypeScript that analyzes GitHub repositories and individual files using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
 
 ## Tech Stack
 
@@ -10,7 +10,7 @@ An AI-powered code review platform built with Spring Boot and React TypeScript t
 - PostgreSQL 15
 - Redis 7
 - JGit 6.8.0 for repository cloning
-- Google Gemini API
+- Google Gemini API (gemini-3.1-flash-lite-preview)
 - OpenRouter API with NVIDIA Nemotron-3 Nano 30B model (free tier)
 - Spring Data JPA + Hibernate
 - Spring Scheduling for automated weekly analysis
@@ -126,13 +126,14 @@ code-review-ai/
   - Binary file detection
   - Auto-cleanup after analysis
 
-- **AI-Powered Analysis**: Uses OpenRouter API with NVIDIA Nemotron-3 Nano 30B model to analyze code for:
+- **AI-Powered Analysis**: Uses LLMs to analyze code for:
   - Security vulnerabilities (hardcoded secrets, SQL injection, XSS, etc.)
   - Code quality issues (complexity, duplication, best practices)
   - Performance issues
   - Best practices violations
   - Maintainability concerns
-  - MVP limit: 1 file per repository to stay within 50 daily request limit
+  - Repository analysis: Uses OpenRouter NVIDIA Nemotron-3 Nano 30B (MVP limit: 1 file per repository)
+  - Single file analysis: Uses Gemini gemini-3.1-flash-lite-preview (analyze specific GitHub files)
 
 - **Scheduled Daily Analysis**: Automatically analyzes a subset of repositories every weekday at midnight
   - Distributes repositories across 5 weekdays (Monday-Friday) to avoid API rate limits
@@ -147,11 +148,19 @@ code-review-ai/
   - Project names displayed (e.g., "Guinea Pig Portfolio" instead of owner/name)
   - Tech stack badges showing frontend and backend frameworks
 
-- **Real Analysis**: Analyze any public GitHub repository with LLM-powered insights
+- **Single File Analysis**: Analyze individual GitHub files using Gemini (gemini-3.1-flash-lite-preview)
+  - Enter GitHub file URL directly
+  - Auto-detects language from file extension
+  - Fetches file content via GitHub API
+  - Instant analysis results displayed on landing page
+- **Repository Analysis**: Analyze entire repositories (disabled in demo mode)
 
 ### UI Features
 
 - Modern, responsive design with TailwindCSS 4
+- Animated gradient background with glassmorphism effects
+- Gradient animated title
+- Single-screen landing page (no scrolling on desktop)
 - shadcn/ui components for consistent styling
 - Health score visualization with color-coded indicators
 - Card-based layout for repository listing with project names and tech stacks
@@ -252,6 +261,14 @@ The platform automatically excludes the following files during analysis:
 - ✅ Added deleteByAnalysisId and findByRepositoryId methods to repositories
 - ✅ Seeding logic replaces analyses with zero issues or empty results with fake data
 - ✅ Fixed Docker networking issues (frontend proxy using hardcoded IP)
+- ✅ Updated Gemini model to gemini-3.1-flash-lite-preview
+- ✅ Added single file analysis endpoint (POST /api/analyze-file)
+- ✅ Added GitHub file URL input to landing page
+- ✅ Redesigned landing page with animated gradient background and glassmorphism
+- ✅ Changed app name to "\*Repo Reviewer"
+- ✅ Made landing page fit on one screen without scrolling (desktop)
+- ✅ Disabled repository analysis in demo mode
+- ✅ Removed repository list and categories from landing page
 
 ### In Progress
 
