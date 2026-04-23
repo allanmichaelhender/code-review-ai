@@ -33,7 +33,6 @@ export default function Landing() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any[] | null>(null);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     fetch("/api/repositories")
@@ -59,7 +58,6 @@ export default function Landing() {
 
     setAnalyzing(true);
     setAnalysisResult(null);
-    setHasSubmitted(true);
 
     try {
       const response = await fetch("/api/analyse-file", {
@@ -102,11 +100,11 @@ export default function Landing() {
   return (
     <div className="h-screen bg-slate-900 relative overflow-hidden">
       {/* Main content */}
-      <div className="relative z-10 h-screen flex flex-col md:flex-row items-center justify-center px-2 py-4 gap-12 max-w-[95vw]">
+      <div className="relative z-10 h-screen flex flex-col md:flex-row items-center justify-center px-8 py-4 gap-12 max-w-[95vw]">
         {/* Left column - 5/7ths */}
         <div className="flex-[5/7] flex flex-col">
           {/* Title and Description */}
-          {!hasSubmitted && (
+          {(!analysisResult || analysisResult.length === 0) && (
             <>
               <h1 className="text-4xl md:text-5xl font-bold mb-2 text-white">
                 REPO REVIEWER
@@ -190,7 +188,7 @@ export default function Landing() {
 
             {/* Analysis Results */}
             {analysisResult && (
-              <div className="flex-1 space-y-3 overflow-y-auto">
+              <div className="max-h-[500px] space-y-3 overflow-y-auto mb-4">
                 <h3 className="text-white font-semibold">
                   Found {analysisResult.length}{" "}
                   {analysisResult.length === 1 ? "issue" : "issues"}
