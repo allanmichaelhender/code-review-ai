@@ -2,9 +2,9 @@
 FROM node:22-alpine AS frontend-build
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci && chmod +x node_modules/.bin/*
 COPY frontend/ ./
-RUN npx vite build
+RUN ./node_modules/.bin/vite build
 
 # Final nginx image with frontend assets
 FROM nginx:alpine
