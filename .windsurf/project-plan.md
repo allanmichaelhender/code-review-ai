@@ -27,6 +27,14 @@
 - ✅ Fixed repository lookup to use URL instead of owner/name
 - ✅ Frontend configured to use OpenRouter provider by default
 - ✅ OpenRouter API integration with NVIDIA Nemotron-3 Super 120B model
+- ✅ Landing page layout restructure: two-column layout (5/7 left, 1/3 right)
+- ✅ Single file analysis with Analyse button inside input box
+- ✅ File/Repo mode toggle slider (Repo disabled in demo mode)
+- ✅ Analysis results expand to fill left column after submission
+- ✅ Analysis categories displayed without title at bottom of left column
+- ✅ Demo Repositories column with health score visualization
+- ✅ Mobile responsive: columns stack vertically, slider below input, 2-column grid for repos
+- ✅ Vertically and horizontally centered content with 95% viewport width usage
 
 ### In Progress (Phase 5)
 

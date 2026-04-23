@@ -158,9 +158,15 @@ code-review-ai/
 ### UI Features
 
 - Modern, responsive design with TailwindCSS 4
-- Animated gradient background with glassmorphism effects
-- Gradient animated title
-- Single-screen landing page (no scrolling on desktop)
+- Two-column landing page layout (5/7 left for analysis, 1/3 right for demo repositories)
+- Single file analysis with Analyse button inside input box
+- File/Repo mode toggle slider (Repo disabled in demo mode)
+- Analysis results expand to fill left column after submission
+- Analysis categories displayed without title at bottom of left column
+- Demo Repositories column with health score visualization
+- Mobile responsive: columns stack vertically, slider below input, 2-column grid for repos
+- Vertically and horizontally centered content
+- Uses 95% of viewport width on desktop
 - shadcn/ui components for consistent styling
 - Health score visualization with color-coded indicators
 - Card-based layout for repository listing with project names and tech stacks

@@ -22,21 +22,30 @@ src/
 
 **Landing.tsx:**
 
-- Single-screen layout (no scrolling on desktop)
+- Two-column layout (5/7 left column, 1/3 right column) on desktop
+- Mobile responsive: columns stack vertically on mobile
+- Vertically and horizontally centered content
+- Uses 95% of viewport width on desktop
 - Animated gradient background (purple to indigo to slate)
 - Pulsing radial gradient overlays
 - Gradient animated title ("\*Repo Reviewer" with emerald-cyan-purple gradient)
 - Glassmorphism effects with backdrop blur
-- Mode toggle slider (Single File / Repository - Not available in demo)
+- Left column (5/7):
+  - Title and description (hidden after analysis submission)
+  - Input section with Analyse button inside input box
+  - File/Repo mode toggle slider (Repo disabled in demo mode)
+  - Analysis results expand to fill space after submission
+  - Analysis categories displayed without title at bottom
+- Right column (1/3):
+  - "Demo Repositories" header
+  - Repository cards with health scores
+  - 2-column grid on mobile, 1 column on desktop
 - Single File mode:
-  - GitHub file URL input
-  - "Analyse" button with Gemini provider
-  - Analysis result display
+  - GitHub file URL input with Analyse button inside
+  - Analysis result display with severity colors and icons
 - Repository mode (disabled in demo):
-  - Repository URL input
-  - Disabled "Not available in demo" button
-- Analysis categories badges with gradient text
-- Removed: Repository list and categories section
+  - Repository URL input with disabled button
+- Analysis categories: Security, Quality, Performance, Best Practices, Maintainability
 
 **Demo.tsx:**
 
