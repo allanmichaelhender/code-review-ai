@@ -35,6 +35,8 @@
 - ✅ Demo Repositories column with health score visualization
 - ✅ Mobile responsive: columns stack vertically, slider below input, 2-column grid for repos
 - ✅ Vertically and horizontally centered content with 95% viewport width usage
+- ✅ HTTPS deployment with Let's Encrypt SSL certificates (repo-reviewer.ddnsfree.com)
+- ✅ Nginx configuration with HTTP to HTTPS redirect and SSL/TLSv1.2/TLSv1.3 support
 
 ### In Progress (Phase 5)
 

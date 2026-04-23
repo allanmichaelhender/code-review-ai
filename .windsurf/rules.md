@@ -1,4 +1,4 @@
-# \*Repo Reviewer - Project Context
+# Repo Review - Project Context
 
 ## Project Overview
 
@@ -357,7 +357,7 @@ npm run dev
 - ✅ Added single file analysis endpoint (POST /api/analyze-file)
 - ✅ Added GitHub file URL input to landing page
 - ✅ Redesigned landing page with animated gradient background and glassmorphism
-- ✅ Changed app name to "\*Repo Reviewer"
+- ✅ Changed app name to "Repo Review"
 - ✅ Made landing page fit on one screen without scrolling (desktop)
 - ✅ Disabled repository analysis in demo mode
 - ✅ Removed repository list and categories from landing page

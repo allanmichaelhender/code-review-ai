@@ -1,4 +1,4 @@
-# \*Repo Reviewer
+# Repo Review
 
 An AI-powered code review platform built with Spring Boot and React TypeScript that analyzes GitHub repositories and individual files using LLMs (Gemini, OpenRouter + NVIDIA Nemotron) to identify security vulnerabilities and code quality issues.
 
@@ -75,6 +75,16 @@ The application will be available at:
 - Backend API: http://localhost:8080/api
 - Nginx: http://localhost (production)
 - pgAdmin: http://localhost:5050
+
+### Production Deployment
+
+The application is deployed with HTTPS using Let's Encrypt SSL certificates:
+
+- **Domain**: repo-reviewer.ddnsfree.com
+- **HTTP**: Redirects to HTTPS
+- **HTTPS**: Port 443 with TLSv1.2/TLSv1.3
+- **SSL Certificates**: Located at `/etc/letsencrypt/live/repo-reviewer.ddnsfree.com/`
+- **ACME Challenge**: Handled at `/.well-known/acme-challenge/`
 
 ### Local Development
 
@@ -271,7 +281,7 @@ The platform automatically excludes the following files during analysis:
 - ✅ Added single file analysis endpoint (POST /api/analyze-file)
 - ✅ Added GitHub file URL input to landing page
 - ✅ Redesigned landing page with animated gradient background and glassmorphism
-- ✅ Changed app name to "\*Repo Reviewer"
+- ✅ Changed app name to "Repo Review"
 - ✅ Made landing page fit on one screen without scrolling (desktop)
 - ✅ Disabled repository analysis in demo mode
 - ✅ Removed repository list and categories from landing page

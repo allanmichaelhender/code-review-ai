@@ -107,7 +107,7 @@ export default function Landing() {
           {(!analysisResult || analysisResult.length === 0) && (
             <>
               <h1 className="text-4xl md:text-5xl font-bold mb-2 text-white">
-                REPO REVIEWER
+                REPO REVIEW
               </h1>
               <p className="text-sm text-slate-300 mb-4">
                 Analyse your GitHub files/repositories to identify security

@@ -28,6 +28,9 @@ Defines the production configuration:
   - Ports: 80, 443
   - Configuration: nginx/nginx.conf
   - Depends on: frontend, backend
+  - SSL: Let's Encrypt certificates for HTTPS
+  - Domain: repo-reviewer.ddnsfree.com
+  - HTTP to HTTPS redirect enabled
 
 - **pgadmin**: pgAdmin 4 database UI
   - Port: 5050
@@ -46,12 +49,14 @@ Defines development overrides:
 ## Dockerfile (Backend)
 
 Multi-stage build:
+
 1. **Build stage**: Maven build with dependencies
 2. **Run stage**: JRE 21 with application JAR
 
 ## Dockerfile.dev (Frontend)
 
 Development build:
+
 - Node.js 20 base image
 - Install dependencies
 - Run Vite dev server with host binding

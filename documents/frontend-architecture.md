@@ -28,7 +28,7 @@ src/
 - Uses 95% of viewport width on desktop
 - Animated gradient background (purple to indigo to slate)
 - Pulsing radial gradient overlays
-- Gradient animated title ("\*Repo Reviewer" with emerald-cyan-purple gradient)
+- Gradient animated title ("Repo Review" with emerald-cyan-purple gradient)
 - Glassmorphism effects with backdrop blur
 - Left column (5/7):
   - Title and description (hidden after analysis submission)
