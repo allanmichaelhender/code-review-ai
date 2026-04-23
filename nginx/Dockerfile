@@ -9,6 +9,7 @@ RUN node node_modules/vite/bin/vite.js build
 # Final nginx image with frontend assets
 FROM nginx:alpine
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
+COPY nginx/mime.types /etc/nginx/mime.types
 COPY --from=frontend-build /app/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
